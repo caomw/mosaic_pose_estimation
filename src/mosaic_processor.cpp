@@ -2,12 +2,88 @@
 
 #define DRAW_RICH_KEYPOINTS_MODE     0
 #define DRAW_OUTLIERS_MODE           0
+#define DRAW_OPENCV_WINDOW           1
 
 namespace enc = sensor_msgs::image_encodings;
 
 const std::string winName = "Correspondences";
 enum { NONE_FILTER = 0, CROSS_CHECK_FILTER = 1 };
 
+/** @function MosaicProcessor */
+MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
+
+  p.matcherFilterType = getMatcherFilterType( p.matcherFilterName );
+
+  std::memcpy(&this->parameters,&p,sizeof(Parameters));
+
+  ROS_INFO("Creating detector, descriptor extractor and descriptor matcher ...");
+
+  detector_ = cv::FeatureDetector::create( p.featureDetectorType );
+  descriptorExtractor_ = cv::DescriptorExtractor::create( p.descriptorExtractorType );
+  descriptorMatcher_ = cv::DescriptorMatcher::create( p.descriptorMatcherType );
+
+
+  if( detector_.empty() || descriptorExtractor_.empty() || descriptorMatcher_.empty()  )
+  {
+    ROS_ERROR("Can not create detector or descriptor extractor or descriptor matcher of given types");
+
+  }
+
+
+  ROS_INFO_STREAM("Reading the mosaic image " << p.mosaicImgName);
+  mosaicImg = cv::imread(parameters.mosaicImgName);
+
+  if( mosaicImg.empty())
+  {
+    ROS_ERROR("Mosaic image is empty");
+  }
+
+  ROS_INFO("Extracting keypoints from first image...");
+  detector_->detect( mosaicImg, keypointsMosaic_ );
+  ROS_INFO_STREAM(keypointsMosaic_.size() << " points");
+
+  ROS_INFO("Computing descriptors for keypoints from first image...");
+  descriptorExtractor_->compute( mosaicImg, keypointsMosaic_, descriptorsMosaic_ );
+
+  //TODO
+  //put mosaic part here! and process it only ONCE!
+  ROS_INFO("Obtaining mosaic points...");
+  cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_);
+  pointsMosaic3D_.resize(pointsMosaic_.size());
+  for (size_t i_mos=0;i_mos<pointsMosaic_.size();i_mos++){
+      pointsMosaic3D_[i_mos].x = pointsMosaic_[i_mos].x/MOSAIC_PX_METER;
+      pointsMosaic3D_[i_mos].y = pointsMosaic_[i_mos].y/MOSAIC_PX_METER;
+      pointsMosaic3D_[i_mos].z = 0;
+  }
+
+
+  ros::NodeHandle nh;
+
+  std::string cam_ns = nh.resolveName("stereo");
+  std::string image_topic = ros::names::clean(cam_ns + "/left/" + nh.resolveName("image"));
+  std::string info_topic = cam_ns + "/left/camera_info";
+
+  // Subscribe to input topics.
+  ROS_INFO("Subscribing to:\n\t* %s \n\t* %s", 
+      image_topic.c_str(),
+      info_topic.c_str());
+
+  image_transport::ImageTransport it(nh);
+  //Subscribe to image
+  //image_transport::Subscriber image_sub;
+  cam_sub_ = it.subscribeCamera(image_topic, 1, &MosaicProcessor::cameraCallback, this, transport);
+  posePub_ = nh.advertise<geometry_msgs::PoseStamped>("pose", 1);
+
+#if DRAW_OPENCV_WINDOW
+  cv::namedWindow(winName,CV_WINDOW_NORMAL);
+#endif
+}
+
+/** @function ~MosaicProcessor */
+MosaicProcessor::~MosaicProcessor(){
+}
+
+/** @function getMatcherFilterType */
 int MosaicProcessor::getMatcherFilterType( const std::string& str )
 {
   if( str == "NoneFilter" )
@@ -67,7 +143,7 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   try
   {
     if (sensor_msgs::image_encodings::isColor(msg->encoding))
-      ROS_INFO("\t* It would be slightly faster with MONO images");
+      //ROS_INFO("\t* It would be slightly faster with MONO images");
     cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
   }
   catch (cv_bridge::Exception& e)
@@ -109,7 +185,7 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
     image_points[i] = keypointsFrame_[trainIdxs[i]].pt;
     world_points[i] = pointsMosaic3D_[queryIdxs[i]];
   }
-
+#if DRAW_OPENCV_WINDOW
   if( parameters.ransacReprojThreshold >= 0 )
   {
     ROS_INFO("Computing homography (RANSAC)...");
@@ -120,10 +196,10 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   }
 
   cv::Mat drawImg;
-  std::vector<char> matchesMask( filteredMatches_.size(), 0 );
-  int count=0;
   if( !H12_.empty() ) // filter outliers
   {
+    int count=0;
+    std::vector<char> matchesMask( filteredMatches_.size(), 0 );
     cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, queryIdxs);
     cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, trainIdxs);
     cv::Mat pointsMosaicT; 
@@ -162,7 +238,20 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   else
     drawMatches( mosaicImg, keypointsMosaic_, frameImg, keypointsFrame_, filteredMatches_, drawImg );
 
-  //
+  //-- Get the corners from the frame image ( the object to be "detected" )
+  std::vector<cv::Point2f> frame_corners(4);
+  frame_corners[0] = cvPoint(0,0); frame_corners[1] = cvPoint( frameImg.cols, 0 );
+  frame_corners[2] = cvPoint( frameImg.cols, frameImg.rows ); frame_corners[3] = cvPoint( 0, frameImg.rows );
+  std::vector<cv::Point2f> scene_corners(4);
+
+  perspectiveTransform( frame_corners, scene_corners, H21_);
+
+  //-- Draw lines between the corners (the mapped object in the scene - image_2 )
+  line( drawImg, scene_corners[0], scene_corners[1], cv::Scalar(0, 255, 0), 4 );
+  line( drawImg, scene_corners[1], scene_corners[2], cv::Scalar( 0, 255, 0), 4 );
+  line( drawImg, scene_corners[2], scene_corners[3], cv::Scalar( 0, 255, 0), 4 );
+  line( drawImg, scene_corners[3], scene_corners[0], cv::Scalar( 0, 255, 0), 4 );
+#endif
 
   ROS_INFO("Trying to find the camera pose...");
   int size_dc;
@@ -171,10 +260,6 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   //distCoefficients_ = cv::Mat(1,size_dc,CV_64FC1,const_cast<double*>(cam_info->D.data()));
   distCoefficients_ = cv::Mat(1,size_dc,CV_64FC1,const_cast<double*>(cam_info->D.data()));
 
-  
-  //TODO
-  //move mosaic part to begginning:
-  size_t i2;
   cv::Mat rvec(3, 1, CV_64FC1);
   cv::Mat tvec(3, 1, CV_64FC1);
   bool useExtrinsicGuess = false;
@@ -207,25 +292,10 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
         numInliers, pointsMosaic3D_.size(), minInliers);
   }
 
-
-
-  //-- Get the corners from the frame image ( the object to be "detected" )
-  std::vector<cv::Point2f> frame_corners(4);
-  frame_corners[0] = cvPoint(0,0); frame_corners[1] = cvPoint( frameImg.cols, 0 );
-  frame_corners[2] = cvPoint( frameImg.cols, frameImg.rows ); frame_corners[3] = cvPoint( 0, frameImg.rows );
-  std::vector<cv::Point2f> scene_corners(4);
-
-  perspectiveTransform( frame_corners, scene_corners, H21_);
-
-  //-- Draw lines between the corners (the mapped object in the scene - image_2 )
-  line( drawImg, scene_corners[0], scene_corners[1], cv::Scalar(0, 255, 0), 4 );
-  line( drawImg, scene_corners[1], scene_corners[2], cv::Scalar( 0, 255, 0), 4 );
-  line( drawImg, scene_corners[2], scene_corners[3], cv::Scalar( 0, 255, 0), 4 );
-  line( drawImg, scene_corners[3], scene_corners[0], cv::Scalar( 0, 255, 0), 4 );
-
-
+#if DRAW_OPENCV_WINDOW
   cv::imshow( winName, drawImg );
   cv::waitKey(5);
+#endif
 }
 
 
@@ -242,7 +312,7 @@ void MosaicProcessor::publishTransform(const cv::Mat& tvec, const cv::Mat& rvec,
 
   tf::Transform transform(quaternion, translation);
   tf::StampedTransform stampedTransform(
-      transform, stamp, camera_frame_id, "/target");
+      transform, stamp, camera_frame_id, "/mosaic");
   tfBroadcaster_.sendTransform(stampedTransform);
 
   geometry_msgs::PoseStamped pose_msg;
@@ -252,77 +322,6 @@ void MosaicProcessor::publishTransform(const cv::Mat& tvec, const cv::Mat& rvec,
 
   posePub_.publish(pose_msg);
 }
-/** @function MosaicProcessor */
-MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
-
-  p.matcherFilterType = getMatcherFilterType( p.matcherFilterName );
-
-  std::memcpy(&this->parameters,&p,sizeof(Parameters));
-
-  ROS_INFO("Creating detector, descriptor extractor and descriptor matcher ...");
-
-  detector_ = cv::FeatureDetector::create( p.featureDetectorType );
-  descriptorExtractor_ = cv::DescriptorExtractor::create( p.descriptorExtractorType );
-  descriptorMatcher_ = cv::DescriptorMatcher::create( p.descriptorMatcherType );
-
-
-  if( detector_.empty() || descriptorExtractor_.empty() || descriptorMatcher_.empty()  )
-  {
-    ROS_ERROR("Can not create detector or descriptor extractor or descriptor matcher of given types");
-
-  }
-
-
-  ROS_INFO_STREAM("Reading the mosaic image " << p.mosaicImgName);
-  mosaicImg = cv::imread(parameters.mosaicImgName);
-
-  if( mosaicImg.empty())
-  {
-    ROS_ERROR("Mosaic image is empty");
-  }
-
-  ROS_INFO("Extracting keypoints from first image...");
-  detector_->detect( mosaicImg, keypointsMosaic_ );
-  ROS_INFO_STREAM(keypointsMosaic_.size() << " points");
-
-  ROS_INFO("Computing descriptors for keypoints from first image...");
-  descriptorExtractor_->compute( mosaicImg, keypointsMosaic_, descriptorsMosaic_ );
-
-  //TODO
-  //put mosaic part here! and process it only ONCE!
-  ROS_INFO("Obtaining mosaic points...");
-  cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_);
-  pointsMosaic3D_.resize(pointsMosaic_.size());
-  for (size_t i_mos=0;i_mos<pointsMosaic_.size();i_mos++){
-      pointsMosaic3D_[i_mos].x = pointsMosaic_[i_mos].x/MOSAIC_PX_METER;
-      pointsMosaic3D_[i_mos].y = pointsMosaic_[i_mos].y/MOSAIC_PX_METER;
-      pointsMosaic3D_[i_mos].z = 0;
-  }
-
-  cv::namedWindow(winName,CV_WINDOW_NORMAL);
-
-  ros::NodeHandle nh;
-
-  std::string cam_ns = nh.resolveName("stereo");
-  std::string image_topic = ros::names::clean(cam_ns + "/left/" + nh.resolveName("image"));
-  std::string info_topic = cam_ns + "/left/camera_info";
-
-  // Subscribe to input topics.
-  ROS_INFO("Subscribing to:\n\t* %s \n\t* %s", 
-      image_topic.c_str(),
-      info_topic.c_str());
-
-  image_transport::ImageTransport it(nh);
-  //Subscribe to image
-  //image_transport::Subscriber image_sub;
-  cam_sub_ = it.subscribeCamera(image_topic, 1, &MosaicProcessor::cameraCallback, this, transport);
-  posePub_ = local_nh.advertise<geometry_msgs::PoseStamped>("pose", 1);
-}
-
-MosaicProcessor::~MosaicProcessor(){
-}
-
-
 
 std::ostream& operator<<(std::ostream& out, const MosaicProcessorHeader::Parameters& params)
 {

@@ -29,7 +29,7 @@ class MosaicProcessorHeader {
       int matcherFilterType;
       double ransacReprojThreshold;
     }parameters;
-
+ 
 };
 
 class MosaicProcessor : public MosaicProcessorHeader {
