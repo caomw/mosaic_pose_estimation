@@ -1,0 +1,4 @@
+bin/*
+build/*
+include/*/*.h~
+src/*.cpp~
