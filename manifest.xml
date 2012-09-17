@@ -10,12 +10,15 @@
   <url>http://ros.org/wiki/mosaic_cam_pose</url>
 
   <depend package="roscpp"/>
+  <depend package="rospy"/>
+  <depend package="roslib"/>
   <depend package="opencv2"/>
   <depend package="sensor_msgs"/>
   <depend package="image_transport"/>
   <depend package="image_geometry"/>
   <depend package="cv_bridge"/>
   <depend package="tf"/>
+  <depend package="nav_msgs"/>
 
 </package>
 

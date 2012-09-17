@@ -1,4 +1,14 @@
 #include "mosaic_cam_pose/mosaic_processor.h"
+#include <nav_msgs/Odometry.h>
+#include <ros/package.h>
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
+#include <opencv2/nonfree/nonfree.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
+#include <image_transport/camera_subscriber.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <iostream>
 
 #define DRAW_RICH_KEYPOINTS_MODE     0
 #define DRAW_OUTLIERS_MODE           0
@@ -7,7 +17,7 @@
 namespace enc = sensor_msgs::image_encodings;
 
 const std::string winName = "Correspondences";
-enum { NONE_FILTER = 0, CROSS_CHECK_FILTER = 1 };
+enum { NONE_FILTER = 0, CROSS_CHECK_FILTER = 1, DISTANCE_FILTER = 2};
 
 /** @function MosaicProcessor */
 MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
@@ -22,6 +32,7 @@ MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
   descriptorExtractor_ = cv::DescriptorExtractor::create( p.descriptorExtractorType );
   descriptorMatcher_ = cv::DescriptorMatcher::create( p.descriptorMatcherType );
 
+  first_run_ = true;
 
   if( detector_.empty() || descriptorExtractor_.empty() || descriptorMatcher_.empty()  )
   {
@@ -45,8 +56,6 @@ MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
   ROS_INFO("Computing descriptors for keypoints from first image...");
   descriptorExtractor_->compute( mosaicImg, keypointsMosaic_, descriptorsMosaic_ );
 
-  //TODO
-  //put mosaic part here! and process it only ONCE!
   ROS_INFO("Obtaining mosaic points...");
   cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_);
   pointsMosaic3D_.resize(pointsMosaic_.size());
@@ -55,7 +64,6 @@ MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
       pointsMosaic3D_[i_mos].y = pointsMosaic_[i_mos].y/MOSAIC_PX_METER;
       pointsMosaic3D_[i_mos].z = 0;
   }
-
 
   ros::NodeHandle nh;
 
@@ -73,6 +81,7 @@ MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
   //image_transport::Subscriber image_sub;
   cam_sub_ = it.subscribeCamera(image_topic, 1, &MosaicProcessor::cameraCallback, this, transport);
   posePub_ = nh.advertise<geometry_msgs::PoseStamped>("pose", 1);
+  odomPub_ = nh.advertise<nav_msgs::Odometry>("odom_gt", 1);
 
 #if DRAW_OPENCV_WINDOW
   cv::namedWindow(winName,CV_WINDOW_NORMAL);
@@ -90,6 +99,8 @@ int MosaicProcessor::getMatcherFilterType( const std::string& str )
     return NONE_FILTER;
   if( str == "CrossCheckFilter" )
     return CROSS_CHECK_FILTER;
+  if( str == "DistanceFilter")
+    return DISTANCE_FILTER;
   CV_Error(CV_StsBadArg, "Invalid filter name");
   return -1;
 }
@@ -134,11 +145,36 @@ void MosaicProcessor::crossCheckMatching( cv::Ptr<cv::DescriptorMatcher>& descri
   }
 }
 
+void MosaicProcessor::thresholdMatching( cv::Ptr<cv::DescriptorMatcher>& descriptorMatcher,
+    const cv::Mat& descriptors1, const cv::Mat& descriptors2,
+    std::vector<cv::DMatch>& filteredMatches12, double matching_threshold)
+{
+  filteredMatches12.clear();
+  std::vector<std::vector<cv::DMatch> > matches12;
+  int knn = 2;
+  descriptorMatcher->knnMatch( descriptors1, descriptors2, matches12, knn );
+  for( size_t m = 0; m < matches12.size(); m++ )
+  {
+    if (matches12[m].size() == 1)
+    {
+      filteredMatches12.push_back(matches12[m][0]);
+    }
+    else if (matches12[m].size() == 2) // normal case
+    {
+      if (matches12[m][0].distance / matches12[m][1].distance < matching_threshold)
+      {
+        filteredMatches12.push_back(matches12[m][0]);
+      }
+    }
+  }
+}
+
+
+
 /** @function imageCallback */
 void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr& cam_info){
 
   cv_bridge::CvImagePtr cv_ptr;
-
 
   try
   {
@@ -167,10 +203,15 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   switch( parameters.matcherFilterType )
   {
     case CROSS_CHECK_FILTER :
-      crossCheckMatching( descriptorMatcher_, descriptorsMosaic_, descriptorsFrame_, filteredMatches_, 1 );
+      crossCheckMatching( descriptorMatcher_, descriptorsFrame_, descriptorsMosaic_, filteredMatches_, 1 );
+      break;
+    case DISTANCE_FILTER:
+      //thresholdMatching( descriptorMatcher_, descriptorsMosaic_, descriptorsFrame_, filteredMatches_, parameters.matching_threshold);
+      //changed order for train and query
+      thresholdMatching( descriptorMatcher_, descriptorsFrame_, descriptorsMosaic_, filteredMatches_, parameters.matching_threshold);
       break;
     default :
-      simpleMatching( descriptorMatcher_, descriptorsMosaic_, descriptorsFrame_, filteredMatches_ );
+      simpleMatching( descriptorMatcher_, descriptorsFrame_, descriptorsMosaic_, filteredMatches_ );
       break;
   }
   ROS_INFO_STREAM(filteredMatches_.size() << " points");
@@ -182,28 +223,35 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   {
     queryIdxs[i] = filteredMatches_[i].queryIdx;
     trainIdxs[i] = filteredMatches_[i].trainIdx;
-    image_points[i] = keypointsFrame_[trainIdxs[i]].pt;
-    world_points[i] = pointsMosaic3D_[queryIdxs[i]];
+    image_points[i] = keypointsFrame_[queryIdxs[i]].pt;
+    world_points[i] = pointsMosaic3D_[trainIdxs[i]];
   }
 #if DRAW_OPENCV_WINDOW
+  cv::Mat H12,H21;
   if( parameters.ransacReprojThreshold >= 0 )
   {
+
     ROS_INFO("Computing homography (RANSAC)...");
-    cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, queryIdxs);
-    cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, trainIdxs);
-    H12_ = cv::findHomography( cv::Mat(pointsMosaic_), cv::Mat(pointsFrame_), CV_RANSAC, parameters.ransacReprojThreshold );
-    H21_ = cv::findHomography( cv::Mat(pointsFrame_), cv::Mat(pointsMosaic_), CV_RANSAC, parameters.ransacReprojThreshold );
+    //same change
+    //cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, queryIdxs);
+    //cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, trainIdxs);
+    cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, trainIdxs);
+    cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, queryIdxs);
+    H12 = cv::findHomography( cv::Mat(pointsMosaic_), cv::Mat(pointsFrame_), CV_RANSAC, parameters.ransacReprojThreshold );
+    H21 = cv::findHomography( cv::Mat(pointsFrame_), cv::Mat(pointsMosaic_), CV_RANSAC, parameters.ransacReprojThreshold );
   }
 
   cv::Mat drawImg;
-  if( !H12_.empty() ) // filter outliers
+  if( !H12.empty() ) // filter outliers
   {
     int count=0;
     std::vector<char> matchesMask( filteredMatches_.size(), 0 );
-    cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, queryIdxs);
-    cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, trainIdxs);
+    //cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, queryIdxs);
+    //cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, trainIdxs);
+    cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, trainIdxs);
+    cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, queryIdxs);
     cv::Mat pointsMosaicT; 
-    cv::perspectiveTransform(cv::Mat(pointsMosaic_), pointsMosaicT, H12_);
+    cv::perspectiveTransform(cv::Mat(pointsMosaic_), pointsMosaicT, H12);
     double ransacReprojThreshold = parameters.ransacReprojThreshold;
     double maxInlierDist = ransacReprojThreshold < 0 ? 3 : ransacReprojThreshold;
     for( size_t i1 = 0; i1 < pointsMosaic_.size(); i1++ )
@@ -238,37 +286,33 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   else
     drawMatches( mosaicImg, keypointsMosaic_, frameImg, keypointsFrame_, filteredMatches_, drawImg );
 
-  //-- Get the corners from the frame image ( the object to be "detected" )
-  std::vector<cv::Point2f> frame_corners(4);
-  frame_corners[0] = cvPoint(0,0); frame_corners[1] = cvPoint( frameImg.cols, 0 );
-  frame_corners[2] = cvPoint( frameImg.cols, frameImg.rows ); frame_corners[3] = cvPoint( 0, frameImg.rows );
-  std::vector<cv::Point2f> scene_corners(4);
 
-  perspectiveTransform( frame_corners, scene_corners, H21_);
-
-  //-- Draw lines between the corners (the mapped object in the scene - image_2 )
-  line( drawImg, scene_corners[0], scene_corners[1], cv::Scalar(0, 255, 0), 4 );
-  line( drawImg, scene_corners[1], scene_corners[2], cv::Scalar( 0, 255, 0), 4 );
-  line( drawImg, scene_corners[2], scene_corners[3], cv::Scalar( 0, 255, 0), 4 );
-  line( drawImg, scene_corners[3], scene_corners[0], cv::Scalar( 0, 255, 0), 4 );
 #endif
 
   ROS_INFO("Trying to find the camera pose...");
-  int size_dc;
-  size_dc = cam_info->D.size();
-  cameraMatrix_ = cv::Mat(3,3,CV_64FC1,const_cast<double*>(cam_info->K.data()));
-  //distCoefficients_ = cv::Mat(1,size_dc,CV_64FC1,const_cast<double*>(cam_info->D.data()));
-  distCoefficients_ = cv::Mat(1,size_dc,CV_64FC1,const_cast<double*>(cam_info->D.data()));
+  
+  //cuando se hace la rectificacion también se modifican las distancias focales.
+  //los parametros originales estan en la K y los rectificados en la P
+  
+  const cv::Mat P(3,4, CV_64FC1, const_cast<double*>(cam_info->P.data()));
+  // We have to take K' here extracted from P to take the R|t into account
+  // that was performed during rectification.
+  // This way we obtain the pattern pose with respect to the same frame that
+  // is used in stereo depth calculation.
+  const cv::Mat K_prime = P.colRange(cv::Range(0,3));
 
-  cv::Mat rvec(3, 1, CV_64FC1);
-  cv::Mat tvec(3, 1, CV_64FC1);
-  bool useExtrinsicGuess = false;
+
+  if(first_run_){
+    rvec_ = cv::Mat(3, 1, CV_64FC1);
+    tvec_ = cv::Mat(3, 1, CV_64FC1);
+    useExtrinsicGuess_ = false;
+  }
   int numIterations = 100;
-  float allowedReprojectionError = 8.0; // used by ransac to classify inliers
+  float allowedReprojectionError = parameters.ransacReprojThreshold;//8.0; // used by ransac to classify inliers
   int maxInliers = 100; // stop iteration if more inliers than this are found
   cv::Mat inliers;
-  cv::solvePnPRansac(world_points, image_points, cameraMatrix_, 
-      distCoefficients_, rvec, tvec, useExtrinsicGuess, numIterations, 
+  cv::solvePnPRansac(world_points, image_points, K_prime, 
+      cv::Mat(), rvec_, tvec_, useExtrinsicGuess_, numIterations,
       allowedReprojectionError, maxInliers, inliers);
   int numInliers = cv::countNonZero(inliers);
   int minInliers = 8;
@@ -277,14 +321,31 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
     ROS_INFO_STREAM("Found transform with " 
       << numInliers << " inliers from " 
       << pointsMosaic3D_.size() << " matches:\n"
-      << "  rvec: " << rvec << "\n"
-      << "  tvec: " << tvec );
+      << "  rvec: " << rvec_ << "\n"
+      << "  tvec: " << tvec_ );
 
+    //TODO: draw the real inliers for solvePnPRansac and publish that as an ros image topic
+    //that is only processed if there are any subscribers.
+    //
+    //filteredMatches?
+    //const vector<vector<DMatch>>& matches1to2
+    //the output from the filtered matches is valid?? Its not used in solvePnP
+    //
+    //matchesMask? crec que puc posar els inliers de la funcio distància
+    //const vector<vector<char>>& matchesMask
+    //
+/*    cv::drawMatches( mosaicImg, keypointsMosaic_, 
+        frameImg, keypointsFrame_, 
+        filteredMatches_, drawImg, 
+        CV_RGB(0, 255, 0), CV_RGB(0, 0, 255), inliers);
+ */   
     // publish result
     ros::Time stamp = msg->header.stamp;
     if (stamp.toSec()==0.0)
       stamp = ros::Time::now();
-    publishTransform(tvec, rvec, stamp, msg->header.frame_id);
+    publishTransform(tvec_, rvec_, stamp, msg->header.frame_id);
+    if(first_run_)
+      useExtrinsicGuess_ = true;
   }
   else
   {
@@ -292,7 +353,20 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
         numInliers, pointsMosaic3D_.size(), minInliers);
   }
 
-#if DRAW_OPENCV_WINDOW
+#if DRAW_OPENCV_WINDOW 
+  //-- Get the corners from the frame image ( the object to be "detected" )
+  std::vector<cv::Point2f> frame_corners(4);
+  frame_corners[0] = cvPoint(0,0); frame_corners[1] = cvPoint( frameImg.cols, 0 );
+  frame_corners[2] = cvPoint( frameImg.cols, frameImg.rows ); frame_corners[3] = cvPoint( 0, frameImg.rows );
+  std::vector<cv::Point2f> scene_corners(4);
+
+  perspectiveTransform( frame_corners, scene_corners, H21);
+
+  //-- Draw lines between the corners (the mapped object in the scene - image_2 )
+  line( drawImg, scene_corners[0], scene_corners[1], cv::Scalar(0, 255, 0), 4 );
+  line( drawImg, scene_corners[1], scene_corners[2], cv::Scalar( 0, 255, 0), 4 );
+  line( drawImg, scene_corners[2], scene_corners[3], cv::Scalar( 0, 255, 0), 4 );
+  line( drawImg, scene_corners[3], scene_corners[0], cv::Scalar( 0, 255, 0), 4 );
   cv::imshow( winName, drawImg );
   cv::waitKey(5);
 #endif
@@ -309,7 +383,7 @@ void MosaicProcessor::publishTransform(const cv::Mat& tvec, const cv::Mat& rvec,
 
   tf::Vector3 translation(
       tvec.at<double>(0, 0), tvec.at<double>(1, 0), tvec.at<double>(2, 0));
-
+  
   tf::Transform transform(quaternion, translation);
   tf::StampedTransform stampedTransform(
       transform, stamp, camera_frame_id, "/mosaic");
@@ -318,7 +392,17 @@ void MosaicProcessor::publishTransform(const cv::Mat& tvec, const cv::Mat& rvec,
   geometry_msgs::PoseStamped pose_msg;
   pose_msg.header.stamp = stamp;
   pose_msg.header.frame_id = camera_frame_id;
-  tf::poseTFToMsg(transform, pose_msg.pose);
+  tf::poseTFToMsg(transform.inverse(), pose_msg.pose);
+
+  //publish the odometry msg
+  nav_msgs::Odometry odom;
+  odom.header.stamp = stamp;
+  odom.header.frame_id = "odom_gt";
+
+  //set the position
+  odom.pose.pose = pose_msg.pose;
+
+  odomPub_.publish(odom);
 
   posePub_.publish(pose_msg);
 }
@@ -330,6 +414,7 @@ std::ostream& operator<<(std::ostream& out, const MosaicProcessorHeader::Paramet
   out << "\t* Descriptor extractor type   = " << params.descriptorExtractorType   << std::endl;
   out << "\t* Descriptor matcher type     = " << params.descriptorMatcherType     << std::endl;
   out << "\t* Matcher filter name         = " << params.matcherFilterName         << std::endl;
+  out << "\t* Matcher filter threshold    = " << params.matching_threshold        << std::endl;
   out << "\t* RANSAC reproj. threshold    = " << params.ransacReprojThreshold;//     << std::endl;
   return out;
 }
@@ -358,11 +443,14 @@ int main(int argc, char** argv)
 
   MosaicProcessor::Parameters p;
 
-  nh.setParam("mosaicImage", "src/mosaic2-20.png");
+  std::string path = ros::package::getPath("mosaic_cam_pose");
+
+  nh.setParam("mosaicImage", path+"/src/mosaic2-20.png");
   nh.setParam("featureDetectorType", "SIFT");
   nh.setParam("descriptorExtractorType", "SIFT");
   nh.setParam("descriptorMatcherType", "FlannBased");
-  nh.setParam("matcherFilterName", "CrossCheckFilter");
+  nh.setParam("matcherFilterName", "DistanceFilter");
+  nh.setParam("matching_threshold",0.8);
   nh.setParam("ransacReprojThreshold", 5.0);
 
   nh.getParam("mosaicImage", p.mosaicImgName);
@@ -370,6 +458,7 @@ int main(int argc, char** argv)
   nh.getParam("descriptorExtractorType", p.descriptorExtractorType);
   nh.getParam("descriptorMatcherType", p.descriptorMatcherType);
   nh.getParam("matcherFilterName", p.matcherFilterName);
+  nh.getParam("matching_threshold",p.matching_threshold);
   nh.getParam("ransacReprojThreshold", p.ransacReprojThreshold);
 
   ROS_INFO_STREAM("The parameters set are: \n" << p);
