@@ -263,8 +263,13 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
     }
     ROS_INFO_STREAM(count << " inliers");
     // draw inliers
-    cv::drawMatches( mosaicImg, keypointsMosaic_, 
+/*    cv::drawMatches( mosaicImg, keypointsMosaic_, 
         frameImg, keypointsFrame_, 
+        filteredMatches_, drawImg, 
+        CV_RGB(0, 255, 0), CV_RGB(0, 0, 255), matchesMask
+*/    cv::drawMatches(  
+        frameImg, keypointsFrame_,
+        mosaicImg, keypointsMosaic_,
         filteredMatches_, drawImg, 
         CV_RGB(0, 255, 0), CV_RGB(0, 0, 255), matchesMask
 #if DRAW_RICH_KEYPOINTS_MODE
@@ -363,10 +368,10 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   perspectiveTransform( frame_corners, scene_corners, H21);
 
   //-- Draw lines between the corners (the mapped object in the scene - image_2 )
-  line( drawImg, scene_corners[0], scene_corners[1], cv::Scalar(0, 255, 0), 4 );
-  line( drawImg, scene_corners[1], scene_corners[2], cv::Scalar( 0, 255, 0), 4 );
-  line( drawImg, scene_corners[2], scene_corners[3], cv::Scalar( 0, 255, 0), 4 );
-  line( drawImg, scene_corners[3], scene_corners[0], cv::Scalar( 0, 255, 0), 4 );
+  line( drawImg, scene_corners[0]+frame_corners[1], scene_corners[1]+frame_corners[1], cv::Scalar(0, 255, 0), 4 );
+  line( drawImg, scene_corners[1]+frame_corners[1], scene_corners[2]+frame_corners[1], cv::Scalar( 0, 255, 0), 4 );
+  line( drawImg, scene_corners[2]+frame_corners[1], scene_corners[3]+frame_corners[1], cv::Scalar( 0, 255, 0), 4 );
+  line( drawImg, scene_corners[3]+frame_corners[1], scene_corners[0]+frame_corners[1], cv::Scalar( 0, 255, 0), 4 );
   cv::imshow( winName, drawImg );
   cv::waitKey(5);
 #endif
