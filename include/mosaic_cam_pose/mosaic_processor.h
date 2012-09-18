@@ -45,6 +45,7 @@ class MosaicProcessor : public MosaicProcessorHeader {
     ros::Publisher odomPub_;
     image_transport::CameraSubscriber cam_sub_;
     tf::TransformBroadcaster tfBroadcaster_;
+    tf::Transform previousPose_;
     std::vector<cv::DMatch> filteredMatches_;
     cv::Ptr<cv::FeatureDetector> detector_;
     cv::Ptr<cv::DescriptorExtractor> descriptorExtractor_;

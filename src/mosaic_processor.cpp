@@ -14,6 +14,8 @@
 #define DRAW_OUTLIERS_MODE           0
 #define DRAW_OPENCV_WINDOW           1
 
+#define MAX_DISPLACEMENT             0.02
+
 namespace enc = sensor_msgs::image_encodings;
 
 const std::string winName = "Correspondences";
@@ -315,7 +317,8 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   int numIterations = 100;
   float allowedReprojectionError = parameters.ransacReprojThreshold;//8.0; // used by ransac to classify inliers
   int maxInliers = 100; // stop iteration if more inliers than this are found
-  cv::Mat inliers;
+  cv::Mat inliers;//,first_tvec;
+  //first_tvec = tvec_.clone();
   cv::solvePnPRansac(world_points, image_points, K_prime, 
       cv::Mat(), rvec_, tvec_, useExtrinsicGuess_, numIterations,
       allowedReprojectionError, maxInliers, inliers);
@@ -329,28 +332,25 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
       << "  rvec: " << rvec_ << "\n"
       << "  tvec: " << tvec_ );
 
+    //double tvec_displacement = norm(,tvec_i-first_tvec);
+    //std::cout << "\t\t\t\t " << tvec_ << std::endl;
+    //std::cout << "\t\t\t\t " << first_tvec << std::endl;
+    //std::cout << "\t\t\t\t " << tvec_displacement << std::endl;
+    //if(tvec_displacement<MAX_DISPLACEMENT){
+
     //TODO: draw the real inliers for solvePnPRansac and publish that as an ros image topic
     //that is only processed if there are any subscribers.
-    //
-    //filteredMatches?
-    //const vector<vector<DMatch>>& matches1to2
-    //the output from the filtered matches is valid?? Its not used in solvePnP
-    //
-    //matchesMask? crec que puc posar els inliers de la funcio distància
-    //const vector<vector<char>>& matchesMask
-    //
-/*    cv::drawMatches( mosaicImg, keypointsMosaic_, 
-        frameImg, keypointsFrame_, 
-        filteredMatches_, drawImg, 
-        CV_RGB(0, 255, 0), CV_RGB(0, 0, 255), inliers);
- */   
-    // publish result
-    ros::Time stamp = msg->header.stamp;
-    if (stamp.toSec()==0.0)
-      stamp = ros::Time::now();
-    publishTransform(tvec_, rvec_, stamp, msg->header.frame_id);
-    if(first_run_)
-      useExtrinsicGuess_ = true;
+  
+      // publish result
+      ros::Time stamp = msg->header.stamp;
+      if (stamp.toSec()==0.0)
+        stamp = ros::Time::now();
+      publishTransform(tvec_, rvec_, stamp, msg->header.frame_id);
+      if(first_run_)
+        useExtrinsicGuess_ = true;
+    //}else{
+    //  ROS_WARN("Result not published. There was a jump in space (%f). Maximum is %f.",tvec_displacement,MAX_DISPLACEMENT); 
+    //}
   }
   else
   {
@@ -392,7 +392,6 @@ void MosaicProcessor::publishTransform(const cv::Mat& tvec, const cv::Mat& rvec,
   tf::Transform transform(quaternion, translation);
   tf::StampedTransform stampedTransform(
       transform, stamp, camera_frame_id, "/mosaic");
-  tfBroadcaster_.sendTransform(stampedTransform);
 
   geometry_msgs::PoseStamped pose_msg;
   pose_msg.header.stamp = stamp;
@@ -407,9 +406,23 @@ void MosaicProcessor::publishTransform(const cv::Mat& tvec, const cv::Mat& rvec,
   //set the position
   odom.pose.pose = pose_msg.pose;
 
-  odomPub_.publish(odom);
-
-  posePub_.publish(pose_msg);
+  //if the translation is valid, then publish
+  
+  //tf camera(t-1) to camera(t) is
+  //tf camera(t-1) to mosaic * tf mosaic to camera(t)
+  tf::Transform actualTransform = previousPose_ * transform.inverse();
+  
+  bool validTranslation = actualTransform.getOrigin().length()<MAX_DISPLACEMENT;
+  
+  if(validTranslation){
+    ROS_INFO("Result published.",actualTransform.getOrigin().length()); 
+    odomPub_.publish(odom);
+    posePub_.publish(pose_msg);
+    tfBroadcaster_.sendTransform(stampedTransform);
+  }else{  
+    ROS_WARN("Result not published. There was a jump in space (%f m). Maximum is %f m.",actualTransform.getOrigin().length(),MAX_DISPLACEMENT); 
+  }
+  previousPose_ = transform;
 }
 
 std::ostream& operator<<(std::ostream& out, const MosaicProcessorHeader::Parameters& params)

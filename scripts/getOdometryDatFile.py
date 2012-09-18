@@ -44,7 +44,7 @@ def getGroundTruth(inbags, start_time, duration, output, camera):
   mosaic_process = subprocess.Popen(mosaic_cmd)
   
   # slow playback to have more point clouds from stereo_image_proc
-  bag_play_cmd = ['rosbag', 'play', '--clock', '-r', '0.4', '-d', '5.0']
+  bag_play_cmd = ['rosbag', 'play', '--clock', '-r', '0.1', '-d', '5.0']
   for bag in inbags:
     bag_play_cmd.append(bag)
   bag_play_cmd.append('--topics')
