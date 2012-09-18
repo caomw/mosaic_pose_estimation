@@ -92,6 +92,7 @@ MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
 
 /** @function ~MosaicProcessor */
 MosaicProcessor::~MosaicProcessor(){
+  cv::DestroyWindow(winName);
 }
 
 /** @function getMatcherFilterType */
@@ -232,15 +233,18 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   cv::Mat H12,H21;
   if( parameters.ransacReprojThreshold >= 0 )
   {
-
-    ROS_INFO("Computing homography (RANSAC)...");
-    //same change
-    //cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, queryIdxs);
-    //cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, trainIdxs);
-    cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, trainIdxs);
-    cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, queryIdxs);
-    H12 = cv::findHomography( cv::Mat(pointsMosaic_), cv::Mat(pointsFrame_), CV_RANSAC, parameters.ransacReprojThreshold );
-    H21 = cv::findHomography( cv::Mat(pointsFrame_), cv::Mat(pointsMosaic_), CV_RANSAC, parameters.ransacReprojThreshold );
+      if (filteredMatches_.size()>=4){
+      ROS_INFO("Computing homography (RANSAC)...");
+      //same change
+      //cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, queryIdxs);
+      //cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, trainIdxs);
+      cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, trainIdxs);
+      cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, queryIdxs);
+      H12 = cv::findHomography( cv::Mat(pointsMosaic_), cv::Mat(pointsFrame_), CV_RANSAC, parameters.ransacReprojThreshold );
+      H21 = cv::findHomography( cv::Mat(pointsFrame_), cv::Mat(pointsMosaic_), CV_RANSAC, parameters.ransacReprojThreshold );
+      }else{
+      ROS_WARN("Not enough matches.");
+      }
   }
 
   cv::Mat drawImg;
