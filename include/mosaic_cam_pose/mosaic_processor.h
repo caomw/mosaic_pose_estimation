@@ -30,9 +30,9 @@ class MosaicProcessor : public MosaicProcessorHeader {
   public:
     cv::Mat mosaicImg;
     cv::Mat frameImg;   
-    MosaicProcessor(Parameters param, std::string transport);   
+    MosaicProcessor(Parameters& param, std::string& transport);   
 
-    ~MosaicProcessor();    
+    ~MosaicProcessor(){};    
     void cameraCallback(const sensor_msgs::ImageConstPtr& msg, const sensor_msgs::CameraInfoConstPtr& cam_info);
 
   protected:

@@ -22,11 +22,11 @@ const std::string winName = "Correspondences";
 enum { NONE_FILTER = 0, CROSS_CHECK_FILTER = 1, DISTANCE_FILTER = 2};
 
 /** @function MosaicProcessor */
-MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
+MosaicProcessor::MosaicProcessor(Parameters& p, std::string& transport){
 
   p.matcherFilterType = getMatcherFilterType( p.matcherFilterName );
 
-  std::memcpy(&this->parameters,&p,sizeof(Parameters));
+  parameters = p;
 
   ROS_INFO("Creating detector, descriptor extractor and descriptor matcher ...");
 
@@ -39,11 +39,9 @@ MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
   if( detector_.empty() || descriptorExtractor_.empty() || descriptorMatcher_.empty()  )
   {
     ROS_ERROR("Can not create detector or descriptor extractor or descriptor matcher of given types");
-
   }
 
-
-  ROS_INFO_STREAM("Reading the mosaic image " << p.mosaicImgName);
+  ROS_INFO_STREAM("Reading the mosaic image: " << p.mosaicImgName);
   mosaicImg = cv::imread(parameters.mosaicImgName);
 
   if( mosaicImg.empty())
@@ -90,10 +88,11 @@ MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
 #endif
 }
 
-/** @function ~MosaicProcessor */
+/** @function ~MosaicProcessor 
 MosaicProcessor::~MosaicProcessor(){
   cv::destroyWindow(winName);
 }
+*/
 
 /** @function getMatcherFilterType */
 int MosaicProcessor::getMatcherFilterType( const std::string& str )
