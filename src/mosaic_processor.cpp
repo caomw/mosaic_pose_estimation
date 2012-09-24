@@ -92,7 +92,7 @@ MosaicProcessor::MosaicProcessor(Parameters p, std::string transport){
 
 /** @function ~MosaicProcessor */
 MosaicProcessor::~MosaicProcessor(){
-  cv::DestroyWindow(winName);
+  cv::destroyWindow(winName);
 }
 
 /** @function getMatcherFilterType */
@@ -419,7 +419,7 @@ void MosaicProcessor::publishTransform(const cv::Mat& tvec, const cv::Mat& rvec,
   bool validTranslation = actualTransform.getOrigin().length()<MAX_DISPLACEMENT;
   
   if(validTranslation){
-    ROS_INFO("Result published.",actualTransform.getOrigin().length()); 
+    ROS_INFO_STREAM("Result published. " << actualTransform.getOrigin().length()); 
     odomPub_.publish(odom);
     posePub_.publish(pose_msg);
     tfBroadcaster_.sendTransform(stampedTransform);
@@ -467,6 +467,7 @@ int main(int argc, char** argv)
 
   std::string path = ros::package::getPath("mosaic_cam_pose");
 
+  /*
   nh.setParam("mosaicImage", path+"/src/mosaic2-20.png");
   nh.setParam("featureDetectorType", "SIFT");
   nh.setParam("descriptorExtractorType", "SIFT");
@@ -474,14 +475,16 @@ int main(int argc, char** argv)
   nh.setParam("matcherFilterName", "DistanceFilter");
   nh.setParam("matching_threshold",0.8);
   nh.setParam("ransacReprojThreshold", 5.0);
+  */
 
-  nh.getParam("mosaicImage", p.mosaicImgName);
-  nh.getParam("featureDetectorType", p.featureDetectorType);
-  nh.getParam("descriptorExtractorType", p.descriptorExtractorType);
-  nh.getParam("descriptorMatcherType", p.descriptorMatcherType);
-  nh.getParam("matcherFilterName", p.matcherFilterName);
-  nh.getParam("matching_threshold",p.matching_threshold);
-  nh.getParam("ransacReprojThreshold", p.ransacReprojThreshold);
+
+  nh.param("mosaicImage", p.mosaicImgName, std::string(path+"/src/mosaic2-20.png"));
+  nh.param("featureDetectorType", p.featureDetectorType, std::string("SIFT"));
+  nh.param("descriptorExtractorType", p.descriptorExtractorType, std::string("SIFT"));
+  nh.param("descriptorMatcherType", p.descriptorMatcherType, std::string("FlannBased"));
+  nh.param("matcherFilterName", p.matcherFilterName, std::string("DistanceFilter"));
+  nh.param("matching_threshold",p.matching_threshold, 0.8);
+  nh.param("ransacReprojThreshold", p.ransacReprojThreshold, 5.0);
 
   ROS_INFO_STREAM("The parameters set are: \n" << p);
 
