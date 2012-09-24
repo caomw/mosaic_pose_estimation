@@ -1,0 +1,8 @@
+mosaicImage: '/src/mosaic2-20.png'
+featureDetectorType: 'SIFT'
+descriptorExtractorType: 'SIFT'
+descriptorMatcherType: 'FlannBased'
+matcherFilterName: 'DistanceFilter'
+matching_threshold: 0.8
+ransacReprojThreshold: 5.0
+

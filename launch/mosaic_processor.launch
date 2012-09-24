@@ -1,0 +1,11 @@
+<launch>
+
+  <arg name="stereo_topic" default="stereo_down"/>
+  <arg name="image_topic" default="image_rect_color"/>
+
+  <node pkg="mosaic_cam_pose" type="mosaic_processor" name="mosaic_processor" output="screen">
+    <rosparam file="$(find mosaic_cam_pose)/default_params.yaml"/>
+    <remap from="stereo" to="$(arg stereo_topic)"/>
+    <remap from="image" to="$(arg image_topic)"/>
+  </node>
+</launch>
