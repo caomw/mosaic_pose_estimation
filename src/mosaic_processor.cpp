@@ -486,20 +486,9 @@ int main(int argc, char** argv)
 
   MosaicProcessor::Parameters p;
 
-  std::string path = ros::package::getPath("mosaic_cam_pose");
+  std::string path = ros::package::getPath("mosaic_pose_extractor");
 
-  /*
-  nh.setParam("mosaicImage", path+"/src/mosaic2-20.png");
-  nh.setParam("featureDetectorType", "SIFT");
-  nh.setParam("descriptorExtractorType", "SIFT");
-  nh.setParam("descriptorMatcherType", "FlannBased");
-  nh.setParam("matcherFilterName", "DistanceFilter");
-  nh.setParam("matching_threshold",0.8);
-  nh.setParam("ransacReprojThreshold", 5.0);
-  */
-
-
-  nh.param("mosaicImage", p.mosaicImgName, std::string(path+"/src/mosaic2-20.png"));
+  nh.param("mosaicImgName", p.mosaicImgName, std::string(path+"/src/mosaic2-20.png"));
   nh.param("featureDetectorType", p.featureDetectorType, std::string("SIFT"));
   nh.param("descriptorExtractorType", p.descriptorExtractorType, std::string("SIFT"));
   nh.param("descriptorMatcherType", p.descriptorMatcherType, std::string("FlannBased"));

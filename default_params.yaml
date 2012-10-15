@@ -1,4 +1,4 @@
-mosaicImage: '/src/mosaic2-20.png'
+mosaicImgName: '/home/miquel/ros-workspace/src/mosaic2-20.png'
 featureDetectorType: 'SIFT'
 descriptorExtractorType: 'SIFT'
 descriptorMatcherType: 'FlannBased'
