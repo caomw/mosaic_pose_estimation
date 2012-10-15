@@ -116,12 +116,6 @@ MosaicProcessor::MosaicProcessor(Parameters& p, std::string& transport){
 #endif
 }
 
-/** @function ~MosaicProcessor 
-MosaicProcessor::~MosaicProcessor(){
-  cv::destroyWindow(winName);
-}
-*/
-
 /** @function getMatcherFilterType */
 int MosaicProcessor::getMatcherFilterType( const std::string& str )
 {
@@ -369,7 +363,7 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
     //std::cout << "\t\t\t\t " << tvec_displacement << std::endl;
     //if(tvec_displacement<MAX_DISPLACEMENT){
 
-    //TODO: draw the real inliers for solvePnPRansac and publish that as an ros image topic
+    //TODO(miquel) draw the real inliers for solvePnPRansac and publish that as an ros image topic
     //that is only processed if there are any subscribers.
   
       // publish result
