@@ -70,9 +70,10 @@ class MosaicProcessor : public MosaicProcessorHeader {
     int matcherFilterType_;
     ros::Publisher posePub_;
     ros::Publisher odomPub_;
+    image_transport::Publisher matchesImgPub_;
     image_transport::CameraSubscriber cam_sub_;
     tf::TransformBroadcaster tfBroadcaster_;
-    tf::Transform previousPose_;
+    tf::StampedTransform previousPose_;
     std::vector<cv::DMatch> filteredMatches_;
     cv::Ptr<cv::FeatureDetector> detector_;
     cv::Ptr<cv::DescriptorExtractor> descriptorExtractor_;

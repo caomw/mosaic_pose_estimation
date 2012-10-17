@@ -42,11 +42,11 @@
 #define DRAW_OUTLIERS_MODE           0
 #define DRAW_OPENCV_WINDOW           1
 
-#define MAX_DISPLACEMENT             0.02
+#define MAX_SPEED             0.2
 
 namespace enc = sensor_msgs::image_encodings;
 
-const std::string winName = "Correspondences";
+//const std::string winName = "Correspondences";
 enum { NONE_FILTER = 0, CROSS_CHECK_FILTER = 1, DISTANCE_FILTER = 2};
 
 /** @function MosaicProcessor */
@@ -110,10 +110,8 @@ MosaicProcessor::MosaicProcessor(Parameters& p, std::string& transport){
   cam_sub_ = it.subscribeCamera(image_topic, 1, &MosaicProcessor::cameraCallback, this, transport);
   posePub_ = nh.advertise<geometry_msgs::PoseStamped>("pose", 1);
   odomPub_ = nh.advertise<nav_msgs::Odometry>("odom_gt", 1);
+  matchesImgPub_ = it.advertise("matches_image",1);
 
-#if DRAW_OPENCV_WINDOW
-  cv::namedWindow(winName,CV_WINDOW_NORMAL);
-#endif
 }
 
 /** @function getMatcherFilterType */
@@ -202,8 +200,8 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
 
   try
   {
-    if (sensor_msgs::image_encodings::isColor(msg->encoding))
-      //ROS_INFO("\t* It would be slightly faster with MONO images");
+    if (sensor_msgs::image_encodings::isColor(msg->encoding)&&first_run_)
+      ROS_INFO("\t* It would be slightly faster with MONO images");
     cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
   }
   catch (cv_bridge::Exception& e)
@@ -230,8 +228,6 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
       crossCheckMatching( descriptorMatcher_, descriptorsFrame_, descriptorsMosaic_, filteredMatches_, 1 );
       break;
     case DISTANCE_FILTER:
-      //thresholdMatching( descriptorMatcher_, descriptorsMosaic_, descriptorsFrame_, filteredMatches_, parameters.matching_threshold);
-      //changed order for train and query
       thresholdMatching( descriptorMatcher_, descriptorsFrame_, descriptorsMosaic_, filteredMatches_, parameters.matching_threshold);
       break;
     default :
@@ -250,76 +246,6 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
     image_points[i] = keypointsFrame_[queryIdxs[i]].pt;
     world_points[i] = pointsMosaic3D_[trainIdxs[i]];
   }
-#if DRAW_OPENCV_WINDOW
-  cv::Mat H12,H21;
-  if( parameters.ransacReprojThreshold >= 0 )
-  {
-      if (filteredMatches_.size()>=4){
-      ROS_INFO("Computing homography (RANSAC)...");
-      //same change
-      //cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, queryIdxs);
-      //cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, trainIdxs);
-      cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, trainIdxs);
-      cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, queryIdxs);
-      H12 = cv::findHomography( cv::Mat(pointsMosaic_), cv::Mat(pointsFrame_), CV_RANSAC, parameters.ransacReprojThreshold );
-      H21 = cv::findHomography( cv::Mat(pointsFrame_), cv::Mat(pointsMosaic_), CV_RANSAC, parameters.ransacReprojThreshold );
-      }else{
-      ROS_WARN("Not enough matches.");
-      }
-  }
-
-  cv::Mat drawImg;
-  if( !H12.empty() ) // filter outliers
-  {
-    int count=0;
-    std::vector<char> matchesMask( filteredMatches_.size(), 0 );
-    //cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, queryIdxs);
-    //cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, trainIdxs);
-    cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, trainIdxs);
-    cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, queryIdxs);
-    cv::Mat pointsMosaicT; 
-    cv::perspectiveTransform(cv::Mat(pointsMosaic_), pointsMosaicT, H12);
-    double ransacReprojThreshold = parameters.ransacReprojThreshold;
-    double maxInlierDist = ransacReprojThreshold < 0 ? 3 : ransacReprojThreshold;
-    for( size_t i1 = 0; i1 < pointsMosaic_.size(); i1++ )
-    {
-      if( cv::norm(pointsFrame_[i1] - pointsMosaicT.at<cv::Point2f>((int)i1,0)) <= maxInlierDist ){ // inlier
-        matchesMask[i1] = 1;
-        count++;
-      }
-    }
-    ROS_INFO_STREAM(count << " inliers");
-    // draw inliers
-/*    cv::drawMatches( mosaicImg, keypointsMosaic_, 
-        frameImg, keypointsFrame_, 
-        filteredMatches_, drawImg, 
-        CV_RGB(0, 255, 0), CV_RGB(0, 0, 255), matchesMask
-*/    cv::drawMatches(  
-        frameImg, keypointsFrame_,
-        mosaicImg, keypointsMosaic_,
-        filteredMatches_, drawImg, 
-        CV_RGB(0, 255, 0), CV_RGB(0, 0, 255), matchesMask
-#if DRAW_RICH_KEYPOINTS_MODE
-        , cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
-#endif
-        );
-
-#if DRAW_OUTLIERS_MODE
-    // draw outliers
-    for( size_t i1 = 0; i1 < matchesMask.size(); i1++ )
-      matchesMask[i1] = !matchesMask[i1];
-    cv::drawMatches( mosaicImg, keypointsMosaic_, 
-        frameImg, keypointsFrame_, 
-        filteredMatches_, drawImg, 
-        CV_RGB(0, 0, 255), CV_RGB(255, 0, 0), matchesMask,
-        cv::DrawMatchesFlags::DRAW_OVER_OUTIMG | cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
-#endif
-  }
-  else
-    drawMatches( mosaicImg, keypointsMosaic_, frameImg, keypointsFrame_, filteredMatches_, drawImg );
-
-
-#endif
 
   ROS_INFO("Trying to find the camera pose...");
   
@@ -333,7 +259,6 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   // is used in stereo depth calculation.
   const cv::Mat K_prime = P.colRange(cv::Range(0,3));
 
-
   if(first_run_){
     rvec_ = cv::Mat(3, 1, CV_64FC1);
     tvec_ = cv::Mat(3, 1, CV_64FC1);
@@ -342,8 +267,7 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
   int numIterations = 100;
   float allowedReprojectionError = parameters.ransacReprojThreshold;//8.0; // used by ransac to classify inliers
   int maxInliers = 100; // stop iteration if more inliers than this are found
-  cv::Mat inliers;//,first_tvec;
-  //first_tvec = tvec_.clone();
+  cv::Mat inliers;
   cv::solvePnPRansac(world_points, image_points, K_prime, 
       cv::Mat(), rvec_, tvec_, useExtrinsicGuess_, numIterations,
       allowedReprojectionError, maxInliers, inliers);
@@ -357,49 +281,98 @@ void MosaicProcessor::cameraCallback(const sensor_msgs::ImageConstPtr& msg, cons
       << "  rvec: " << rvec_ << "\n"
       << "  tvec: " << tvec_ );
 
-    //double tvec_displacement = norm(,tvec_i-first_tvec);
-    //std::cout << "\t\t\t\t " << tvec_ << std::endl;
-    //std::cout << "\t\t\t\t " << first_tvec << std::endl;
-    //std::cout << "\t\t\t\t " << tvec_displacement << std::endl;
-    //if(tvec_displacement<MAX_DISPLACEMENT){
+    // publish result
+    ros::Time stamp = msg->header.stamp;
+    if (stamp.toSec()==0.0)
+      stamp = ros::Time::now();
+    publishTransform(tvec_, rvec_, stamp, msg->header.frame_id);
+    if(first_run_)
+      useExtrinsicGuess_ = true;
 
-    //TODO(miquel) draw the real inliers for solvePnPRansac and publish that as an ros image topic
-    //that is only processed if there are any subscribers.
-  
-      // publish result
-      ros::Time stamp = msg->header.stamp;
-      if (stamp.toSec()==0.0)
-        stamp = ros::Time::now();
-      publishTransform(tvec_, rvec_, stamp, msg->header.frame_id);
-      if(first_run_)
-        useExtrinsicGuess_ = true;
-    //}else{
-    //  ROS_WARN("Result not published. There was a jump in space (%f). Maximum is %f.",tvec_displacement,MAX_DISPLACEMENT); 
-    //}
+    if(matchesImgPub_.getNumSubscribers()>0){//#if DRAW_OPENCV_WINDOW
+        cv::Mat H12,H21;
+        if( parameters.ransacReprojThreshold >= 0 )
+        {
+            if (filteredMatches_.size()>=4){
+            ROS_INFO("Computing homography (RANSAC)...");
+            cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, trainIdxs);
+            cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, queryIdxs);
+            H12 = cv::findHomography( cv::Mat(pointsMosaic_), cv::Mat(pointsFrame_), CV_RANSAC, parameters.ransacReprojThreshold );
+            H21 = cv::findHomography( cv::Mat(pointsFrame_), cv::Mat(pointsMosaic_), CV_RANSAC, parameters.ransacReprojThreshold );
+            }else{
+            ROS_WARN("Not enough matches.");
+            }
+        }
+
+        cv::Mat drawImg;
+        if( !H12.empty() ) // filter outliers
+        {
+          int count=0;
+          std::vector<char> matchesMask( filteredMatches_.size(), 0 );
+          cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_, trainIdxs);
+          cv::KeyPoint::convert(keypointsFrame_, pointsFrame_, queryIdxs);
+          cv::Mat pointsMosaicT;
+          cv::perspectiveTransform(cv::Mat(pointsMosaic_), pointsMosaicT, H12);
+          double ransacReprojThreshold = parameters.ransacReprojThreshold;
+          double maxInlierDist = ransacReprojThreshold < 0 ? 3 : ransacReprojThreshold;
+          for( size_t i1 = 0; i1 < pointsMosaic_.size(); i1++ )
+          {
+            if( cv::norm(pointsFrame_[i1] - pointsMosaicT.at<cv::Point2f>((int)i1,0)) <= maxInlierDist ){ // inlier
+              matchesMask[i1] = 1;
+              count++;
+            }
+          }
+          ROS_INFO_STREAM(count << " inliers");
+          // draw inliers
+          cv::drawMatches(
+              frameImg, keypointsFrame_,
+              mosaicImg, keypointsMosaic_,
+              filteredMatches_, drawImg,
+              CV_RGB(0, 255, 0), CV_RGB(0, 0, 255), matchesMask
+      #if DRAW_RICH_KEYPOINTS_MODE
+              , cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
+      #endif
+              );
+
+      #if DRAW_OUTLIERS_MODE
+          // draw outliers
+          for( size_t i1 = 0; i1 < matchesMask.size(); i1++ )
+            matchesMask[i1] = !matchesMask[i1];
+          cv::drawMatches( mosaicImg, keypointsMosaic_,
+              frameImg, keypointsFrame_,
+              filteredMatches_, drawImg,
+              CV_RGB(0, 0, 255), CV_RGB(255, 0, 0), matchesMask,
+              cv::DrawMatchesFlags::DRAW_OVER_OUTIMG | cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
+      #endif
+        }
+        else
+          drawMatches( mosaicImg, keypointsMosaic_, frameImg, keypointsFrame_, filteredMatches_, drawImg );
+
+      //-- Get the corners from the frame image ( the object to be "detected" )
+      std::vector<cv::Point2f> frame_corners(4);
+      frame_corners[0] = cvPoint(0,0); frame_corners[1] = cvPoint( frameImg.cols, 0 );
+      frame_corners[2] = cvPoint( frameImg.cols, frameImg.rows ); frame_corners[3] = cvPoint( 0, frameImg.rows );
+      std::vector<cv::Point2f> scene_corners(4);
+
+      cv::perspectiveTransform( frame_corners, scene_corners, H21);
+
+      //-- Draw lines between the corners (the mapped object in the scene - image_2 )
+      cv::line( drawImg, scene_corners[0]+frame_corners[1], scene_corners[1]+frame_corners[1], cv::Scalar(0, 255, 0), 4 );
+      cv::line( drawImg, scene_corners[1]+frame_corners[1], scene_corners[2]+frame_corners[1], cv::Scalar( 0, 255, 0), 4 );
+      cv::line( drawImg, scene_corners[2]+frame_corners[1], scene_corners[3]+frame_corners[1], cv::Scalar( 0, 255, 0), 4 );
+      cv::line( drawImg, scene_corners[3]+frame_corners[1], scene_corners[0]+frame_corners[1], cv::Scalar( 0, 255, 0), 4 );
+      cv_bridge::CvImagePtr drawImgPtr(new cv_bridge::CvImage);
+      drawImgPtr->encoding = cv_ptr->encoding;
+      drawImgPtr->image = drawImg;
+      matchesImgPub_.publish(drawImgPtr->toImageMsg());
+      ROS_INFO("Image published.");
+    }//#endif
   }
   else
   {
     ROS_INFO("Not enough inliers (%i) in %zu matches. Minimum is %i.", 
         numInliers, pointsMosaic3D_.size(), minInliers);
   }
-
-#if DRAW_OPENCV_WINDOW 
-  //-- Get the corners from the frame image ( the object to be "detected" )
-  std::vector<cv::Point2f> frame_corners(4);
-  frame_corners[0] = cvPoint(0,0); frame_corners[1] = cvPoint( frameImg.cols, 0 );
-  frame_corners[2] = cvPoint( frameImg.cols, frameImg.rows ); frame_corners[3] = cvPoint( 0, frameImg.rows );
-  std::vector<cv::Point2f> scene_corners(4);
-
-  perspectiveTransform( frame_corners, scene_corners, H21);
-
-  //-- Draw lines between the corners (the mapped object in the scene - image_2 )
-  line( drawImg, scene_corners[0]+frame_corners[1], scene_corners[1]+frame_corners[1], cv::Scalar(0, 255, 0), 4 );
-  line( drawImg, scene_corners[1]+frame_corners[1], scene_corners[2]+frame_corners[1], cv::Scalar( 0, 255, 0), 4 );
-  line( drawImg, scene_corners[2]+frame_corners[1], scene_corners[3]+frame_corners[1], cv::Scalar( 0, 255, 0), 4 );
-  line( drawImg, scene_corners[3]+frame_corners[1], scene_corners[0]+frame_corners[1], cv::Scalar( 0, 255, 0), 4 );
-  cv::imshow( winName, drawImg );
-  cv::waitKey(5);
-#endif
 }
 
 
@@ -437,17 +410,17 @@ void MosaicProcessor::publishTransform(const cv::Mat& tvec, const cv::Mat& rvec,
   //tf camera(t-1) to mosaic * tf mosaic to camera(t)
   tf::Transform actualTransform = previousPose_ * transform.inverse();
   
-  bool validTranslation = actualTransform.getOrigin().length()<MAX_DISPLACEMENT;
+  double mean_speed = actualTransform.getOrigin().length()/(stamp.toSec()-previousPose_.stamp_.toSec());
+  bool validTranslation = mean_speed <= MAX_SPEED;
   
   if(validTranslation){
-    ROS_INFO_STREAM("Result published. " << actualTransform.getOrigin().length()); 
     odomPub_.publish(odom);
     posePub_.publish(pose_msg);
     tfBroadcaster_.sendTransform(stampedTransform);
   }else{  
-    ROS_WARN("Result not published. There was a jump in space (%f m). Maximum is %f m.",actualTransform.getOrigin().length(),MAX_DISPLACEMENT); 
+    ROS_WARN("Result not published. Not logic speed: %f m/s, maximum is %f m/s.",mean_speed,MAX_SPEED); 
   }
-  previousPose_ = transform;
+  previousPose_ = stampedTransform;
 }
 
 std::ostream& operator<<(std::ostream& out, const MosaicProcessorHeader::Parameters& params)
@@ -470,7 +443,7 @@ int main(int argc, char** argv)
 
   //ROS part
   ros::init(argc, argv, "mosaic_processor");
-  ros::NodeHandle nh;
+  ros::NodeHandle nh("~");
   if (ros::names::remap("stereo") == "stereo") {
     ROS_WARN("'stereo' has not been remapped! Example command-line usage:\n"
         "\t$ rosrun mosaic_cam_pose mosaic_processor stereo:=/stereo_down/left image:=image_rect");
