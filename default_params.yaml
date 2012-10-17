@@ -1,7 +1,8 @@
-mosaicImgName: '/home/miquel/ros-workspace/src/mosaic2-20.png'
+mosaicImgName: '/home/miquel/ros_workspace/mosaic_pose_extractor/src/fondocable-todo-200dpi-30cm.png'
 featureDetectorType: 'SIFT'
 descriptorExtractorType: 'SIFT'
-descriptorMatcherType: 'FlannBased'
+#descriptorMatcherType: 'FlannBased'
+descriptorMatcherType: 'BruteForce'
 matcherFilterName: 'DistanceFilter'
 matching_threshold: 0.8
 ransacReprojThreshold: 5.0
