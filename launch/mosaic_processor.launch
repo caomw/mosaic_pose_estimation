@@ -1,5 +1,6 @@
 <launch>
 
+  <param name="use_sim_time" value="true"/>
   <arg name="stereo_topic" default="stereo_down"/>
   <arg name="image_topic" default="image_rect_color"/>
 
@@ -12,4 +13,7 @@
     <remap from="stereo" to="$(arg stereo_topic)"/>
     <remap from="image" to="$(arg image_topic)"/>
   </node>
+
+  <include file="$(find fugu_configurations)/launch/fugu-c/fugu-c-static_transforms.launch"/>
+
 </launch>

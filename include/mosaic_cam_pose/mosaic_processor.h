@@ -36,7 +36,10 @@
 #include <ros/ros.h>
 
 
-#define MOSAIC_PX_METER 3657.6 //number of pixels in one meter
+#define MOSAIC_PX_METER     3657.6 //number of pixels in one meter girona
+//#define MOSAIC_PX_METER 508.54 //number of pixels in one meter uib
+
+#define MAX_SPEED             0.2
 
 class MosaicProcessorHeader {
   public:

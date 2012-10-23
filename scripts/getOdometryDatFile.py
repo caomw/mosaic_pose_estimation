@@ -30,7 +30,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-PKG = 'mosaic_cam_pose' # this package name
+PKG = 'mosaic_pose_extractor' # this package name
 
 import subprocess
 import time
@@ -50,7 +50,7 @@ def cut_bag(inbags, start_time, duration):
   subprocess.check_call(cut_cmd)
   return cut_name
  
-def getGroundTruth(inbags, start_time, duration, output, camera):
+def getGroundTruth(inbags, start_time, duration, output, camera, param_file):
   # cut_bag_name = cut_bag(inbags, start_time, duration)
   left_image_topic  = camera + '/left/image_raw'
   left_info_topic   = camera + '/left/camera_info'
@@ -59,7 +59,7 @@ def getGroundTruth(inbags, start_time, duration, output, camera):
   topics = [left_image_topic, left_info_topic, right_image_topic, right_info_topic]
   
   # Prepare the output file to store the odometry msgs
-  rostopic_cmd = ['rostopic','echo','-p','/odom_gt']
+  rostopic_cmd = ['rostopic','echo','-p','/mosaic_processor/odom_gt']
   print '=== running rostopic:',' '.join(rostopic_cmd)
   logfile = open(output, 'w')
   rostopic_process = subprocess.Popen(rostopic_cmd, stdout=logfile)
@@ -69,7 +69,11 @@ def getGroundTruth(inbags, start_time, duration, output, camera):
   print '=== running stereo_img_proc:',' '.join(image_proc_cmd)
   image_proc_process = subprocess.Popen(image_proc_cmd)
   
-  mosaic_cmd = ['rosrun', 'mosaic_cam_pose', 'mosaic_processor', 'stereo:=/stereo_down', 'image:=image_rect_color']
+  rosparam_cmd = ['rosparam', 'load', param_file, 'mosaic_processor']
+  print '=== loading parameters YAMLfile:',' '.join(rosparam_cmd)
+  rosparam_process = subprocess.check_call(rosparam_cmd)
+  
+  mosaic_cmd = ['rosrun', 'mosaic_pose_extractor', 'mosaic_processor', 'stereo:=/stereo_down', 'image:=image_rect_color']
   print '=== running mosaic_processor:',' '.join(mosaic_cmd)
   mosaic_process = subprocess.Popen(mosaic_cmd)
   
@@ -100,11 +104,12 @@ if __name__ == "__main__":
   parser.add_argument('-t', '--start_time', type=float, help='Start time in the bagfile. Default = 0.0')
   parser.add_argument('-d', '--duration', type=float, help='Time window')
   parser.add_argument('-o', '--output', default='/home/miquel/output.dat', help='name of the output file')
+  parser.add_argument('-p', '--params', default=roslib.packages.get_pkg_dir('mosaic_pose_extractor') + '/default_params.yaml', help='parameters YAMLfile to load')
   parser.add_argument('-c', '--camera', default='/stereo_down', help='base topic of the camera to use')
   args = parser.parse_args()
  
   try:
-    getGroundTruth(args.inbag, args.start_time, args.duration, args.output, args.camera)
+    getGroundTruth(args.inbag, args.start_time, args.duration, args.output, args.camera, args.params)
   except Exception, e:
     import traceback
     traceback.print_exc()
