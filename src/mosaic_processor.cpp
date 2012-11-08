@@ -26,7 +26,7 @@
 /// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
 /// THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "mosaic_cam_pose/mosaic_processor.h"
+#include "mosaic_pose_estimation/mosaic_processor.h"
 #include <nav_msgs/Odometry.h>
 #include <ros/package.h>
 #include "opencv2/highgui/highgui.hpp"
