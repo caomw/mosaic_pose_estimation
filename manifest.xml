@@ -1,13 +1,12 @@
 <package>
-  <description brief="mosaic_pose_extractor">
+  <description brief="mosaic_pose_estimation">
 
-     mosaic_cam_pose
 
   </description>
   <author>Miquel</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/mosaic_cam_pose</url>
+  <url></url>
 
   <depend package="roscpp"/>
   <depend package="rospy"/>
