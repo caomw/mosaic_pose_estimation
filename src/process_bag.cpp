@@ -120,7 +120,7 @@ int main(int argc, char** argv)
   if (argc < 4)
   {
     std::cout << "Usage: " << argv[0] << " CONFIG_FILE CAMERA_TOPIC OUTPUT_FILE BAGFILE [BAGFILE...]" << std::endl;
-    std::cout << "  Example: " << argv[0] << " params.yaml /camera bag1.bag bag2.bag" << std::endl;
+    std::cout << "  Example: " << argv[0] << " params.yaml /camera data.txt bag1.bag bag2.bag" << std::endl;
     return 0;
   }
 
