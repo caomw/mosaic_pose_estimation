@@ -18,6 +18,10 @@
   <depend package="cv_bridge"/>
   <depend package="tf"/>
   <depend package="nav_msgs"/>
+  <depend package="bag_tools"/>
+
+  <depend package="common_rosdeps"/>
+  <rosdep name="yaml-cpp"/>
 
 </package>
 
