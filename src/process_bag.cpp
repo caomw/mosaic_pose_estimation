@@ -47,7 +47,7 @@ public:
 
     windowName_ = "Matches";
 
-    outputStream_ << "# timestamp x y z qx qy qz num_features num_matches num_inliers"  << std::endl;
+    outputStream_ << "# timestamp x y z qx qy qz qw num_features num_matches num_inliers"  << std::endl;
 
     if (showImage_)
     {
