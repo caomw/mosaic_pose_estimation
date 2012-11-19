@@ -6,3 +6,4 @@ matcher_filter_name: 'DistanceFilter'
 matching_threshold: 0.8
 ransac_reprojection_threshold: 5.0
 show_image: False
+reset_origin: True

@@ -40,6 +40,7 @@ public:
     doc["matching_threshold"] >> p.matching_threshold;
     doc["ransac_reprojection_threshold"] >> p.ransacReprojThreshold;
     doc["show_image"] >> show_image_;
+    doc["reset_origin"] >> reset_origin_;
 
     std::cout << "Parameters:" << std::endl << p << std::endl;
     mosaic_processor_ = boost::shared_ptr<MosaicProcessor>(
@@ -76,9 +77,20 @@ public:
 
     mosaic_processor_->setCameraInfo(info);
     mosaic_processor_->process(preprocessed.rect_color);
-
     tf::Transform transform = mosaic_processor_->getTransformation();
 
+    static bool first_run = true;
+    if (first_run)
+    {
+      first_run = false;
+      if (reset_origin_)
+      {
+        initial_pose_ = transform;
+      }
+    }
+
+    // re-base transform to initial pose
+    transform = initial_pose_.inverse() * transform;
     geometry_msgs::Pose pose_msg;
     tf::poseTFToMsg(transform, pose_msg);
     std::ostringstream ostr;
@@ -108,10 +120,9 @@ private:
   image_proc::Processor processor_;
   boost::shared_ptr<MosaicProcessor> mosaic_processor_;
   bool show_image_;
+  bool reset_origin_;
   std::string window_name_;
-
   std::ostream& output_stream_;
-
   tf::Transform initial_pose_;
 
 };

@@ -31,8 +31,10 @@ public:
     nh.param("matcher_filter_name", p.matcherFilterName, std::string("DistanceFilter"));
     nh.param("matching_threshold",p.matching_threshold, 0.8);
     nh.param("ransac_reprojection_threshold", p.ransacReprojThreshold, 5.0);
+    nh.param("reset_origin", reset_origin_, true);
 
     ROS_INFO_STREAM("The parameters set are: \n" << p);
+    ROS_INFO_STREAM("reset_origin = " << (reset_origin_ ? "true" : "false"));
 
     ROS_INFO_STREAM("Instantiating the mosaic processor.");
     mosaicProcessor_ = boost::shared_ptr<MosaicProcessor>(
@@ -82,6 +84,16 @@ private:
 
     // publish result
     tf::Transform transform = mosaicProcessor_->getTransformation();
+    static bool first_run(true);
+    if (first_run)
+    {
+      first_run = false;
+      if (reset_origin_)
+      {
+        initial_pose_ = transform;
+      }
+    }
+    transform = initial_pose_.inverse() * transform;
     ros::Time stamp = msg->header.stamp;
     if (stamp.toSec()==0.0)
       stamp = ros::Time::now();
@@ -117,6 +129,8 @@ private:
     }
   }
 
+  bool reset_origin_;
+  tf::Transform initial_pose_;
   ros::Publisher posePub_;
   ros::Publisher odomPub_;
   image_transport::Publisher matchesImgPub_;
