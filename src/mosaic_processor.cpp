@@ -272,7 +272,9 @@ tf::Transform MosaicProcessor::getTransformation()
 
   tf::Vector3 translation(tvec_.at<double>(0, 0), tvec_.at<double>(1, 0), 
       tvec_.at<double>(2, 0));
-  return tf::Transform(quaternion, translation);
+  // solvePnPRansac calculates object pose, we want camera pose
+  // for fixed object so we have to invert here
+  return tf::Transform(quaternion, translation).inverse();
 }
 
 

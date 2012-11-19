@@ -23,14 +23,14 @@ public:
     ros::NodeHandle nh_private("~");
     MosaicProcessor::Parameters p;
     std::string path = ros::package::getPath("mosaic_pose_extractor");
-    nh.getParam("mosaicImgName", p.mosaicImgName);
-    nh.getParam("pxPerMeter", p.pxPerMeter);
-    nh.param("featureDetectorType", p.featureDetectorType, std::string("SIFT"));
-    nh.param("descriptorExtractorType", p.descriptorExtractorType, std::string("SIFT"));
-    nh.param("descriptorMatcherType", p.descriptorMatcherType, std::string("FlannBased"));
-    nh.param("matcherFilterName", p.matcherFilterName, std::string("DistanceFilter"));
+    nh.getParam("mosaic_image", p.mosaicImgName);
+    nh.getParam("px_per_meter", p.pxPerMeter);
+    nh.param("feature_detector_type", p.featureDetectorType, std::string("SIFT"));
+    nh.param("descriptor_extractor_type", p.descriptorExtractorType, std::string("SIFT"));
+    nh.param("descriptor_matcher_type", p.descriptorMatcherType, std::string("FlannBased"));
+    nh.param("matcher_filter_name", p.matcherFilterName, std::string("DistanceFilter"));
     nh.param("matching_threshold",p.matching_threshold, 0.8);
-    nh.param("ransacReprojThreshold", p.ransacReprojThreshold, 5.0);
+    nh.param("ransac_reprojection_threshold", p.ransacReprojThreshold, 5.0);
 
     ROS_INFO_STREAM("The parameters set are: \n" << p);
 
@@ -92,7 +92,7 @@ private:
     geometry_msgs::PoseStamped pose_msg;
     pose_msg.header.stamp = stamp;
     pose_msg.header.frame_id = msg->header.frame_id;
-    tf::poseTFToMsg(transform.inverse(), pose_msg.pose);
+    tf::poseTFToMsg(transform, pose_msg.pose);
 
     //publish the odometry msg
     nav_msgs::Odometry odom;

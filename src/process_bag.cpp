@@ -23,7 +23,7 @@ class MosaicPoseEstimator
 {
 public:
   MosaicPoseEstimator(const std::string& config_file, std::ostream& output):
-    outputStream_(output)
+    output_stream_(output)
   {
     MosaicProcessor::Parameters p;
 
@@ -31,34 +31,34 @@ public:
     YAML::Parser parser(fin);
     YAML::Node doc;
     parser.GetNextDocument(doc);
-    doc["mosaicImgName"] >> p.mosaicImgName;
-    doc["pxPerMeter"] >> p.pxPerMeter;
-    doc["featureDetectorType"] >> p.featureDetectorType;
-    doc["descriptorExtractorType"] >> p.descriptorExtractorType;
-    doc["descriptorMatcherType"] >> p.descriptorMatcherType;
-    doc["matcherFilterName"] >> p.matcherFilterName;
+    doc["mosaic_image"] >> p.mosaicImgName;
+    doc["px_per_meter"] >> p.pxPerMeter;
+    doc["feature_detector_type"] >> p.featureDetectorType;
+    doc["descriptor_extractor_type"] >> p.descriptorExtractorType;
+    doc["descriptor_matcher_type"] >> p.descriptorMatcherType;
+    doc["matcher_filter"] >> p.matcherFilterName;
     doc["matching_threshold"] >> p.matching_threshold;
-    doc["ransacReprojThreshold"] >> p.ransacReprojThreshold;
-    doc["showImage"] >> showImage_;
+    doc["ransac_reprojection_threshold"] >> p.ransacReprojThreshold;
+    doc["show_image"] >> show_image_;
 
     std::cout << "Parameters:" << std::endl << p << std::endl;
-    mosaicProcessor_ = boost::shared_ptr<MosaicProcessor>(
+    mosaic_processor_ = boost::shared_ptr<MosaicProcessor>(
         new MosaicProcessor(p));
 
-    windowName_ = "Matches";
+    window_name_ = "Matches";
 
-    outputStream_ << "# timestamp x y z qx qy qz qw num_features num_matches num_inliers"  << std::endl;
+    output_stream_ << "# timestamp x y z qx qy qz qw num_features num_matches num_inliers"  << std::endl;
 
-    if (showImage_)
+    if (show_image_)
     {
-      cv::namedWindow(windowName_, CV_WINDOW_NORMAL);
+      cv::namedWindow(window_name_, CV_WINDOW_NORMAL);
     }
   }
 
   ~MosaicPoseEstimator()
   {
-    if (showImage_)
-      cv::destroyWindow(windowName_);
+    if (show_image_)
+      cv::destroyWindow(window_name_);
   }
 
   void process(const sensor_msgs::ImageConstPtr& img, 
@@ -74,15 +74,15 @@ public:
       return;
     }
 
-    mosaicProcessor_->setCameraInfo(info);
-    mosaicProcessor_->process(preprocessed.rect_color);
+    mosaic_processor_->setCameraInfo(info);
+    mosaic_processor_->process(preprocessed.rect_color);
 
-    tf::Transform transform = mosaicProcessor_->getTransformation();
+    tf::Transform transform = mosaic_processor_->getTransformation();
 
     geometry_msgs::Pose pose_msg;
-    tf::poseTFToMsg(transform.inverse(), pose_msg);
+    tf::poseTFToMsg(transform, pose_msg);
     std::ostringstream ostr;
-    outputStream_ << img->header.stamp << " " 
+    output_stream_ << img->header.stamp << " " 
       << pose_msg.position.x << " "
       << pose_msg.position.y << " " 
       << pose_msg.position.z << " "
@@ -90,15 +90,15 @@ public:
       << pose_msg.orientation.y << " "
       << pose_msg.orientation.z << " " 
       << pose_msg.orientation.w << " "
-      << mosaicProcessor_->getNumFeatures() << " "
-      << mosaicProcessor_->getNumMatches() << " "
-      << mosaicProcessor_->getNumInliers() << std::endl;
+      << mosaic_processor_->getNumFeatures() << " "
+      << mosaic_processor_->getNumMatches() << " "
+      << mosaic_processor_->getNumInliers() << std::endl;
 
-    if (showImage_)
+    if (show_image_)
     {
-      cv::Mat drawImg = mosaicProcessor_->drawMatches();
-      cv::resize(drawImg, drawImg, cv::Size(drawImg.cols * 1000 / drawImg.rows,1000));
-      cv::imshow(windowName_, drawImg);
+      cv::Mat draw_img = mosaic_processor_->drawMatches();
+      cv::resize(draw_img, draw_img, cv::Size(draw_img.cols * 1000 / draw_img.rows,1000));
+      cv::imshow(window_name_, draw_img);
       cv::waitKey(5);
     }
   }
@@ -106,11 +106,13 @@ public:
 private:
 
   image_proc::Processor processor_;
-  boost::shared_ptr<MosaicProcessor> mosaicProcessor_;
-  bool showImage_;
-  std::string windowName_;
+  boost::shared_ptr<MosaicProcessor> mosaic_processor_;
+  bool show_image_;
+  std::string window_name_;
 
-  std::ostream& outputStream_;
+  std::ostream& output_stream_;
+
+  tf::Transform initial_pose_;
 
 };
 

@@ -1,11 +1,11 @@
-mosaicImgName: 'data/mosaic2-20.png'
-pxPerMeter: 731.48
-featureDetectorType: 'SIFT'
-descriptorExtractorType: 'SIFT'
-descriptorMatcherType: 'FlannBased'
-matcherFilterName: 'DistanceFilter'
+mosaic_image: 'data/mosaic2-20.png'
+px_per_meter: 731.48
+feature_detector_type: 'SIFT'
+descriptor_extractor_type: 'SIFT'
+descriptor_matcher_type: 'FlannBased'
+matcher_filter_name: 'DistanceFilter'
 matching_threshold: 0.8
-ransacReprojThreshold: 5.0
+ransac_reprojection_threshold: 5.0
 
-showImage: False
+show_image: False
 
