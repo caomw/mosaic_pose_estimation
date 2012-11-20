@@ -1,5 +1,5 @@
 mosaic_image: 'data/mosaic2-20.png'
-px_per_meter: 731.48
+px_per_meter: 567.9717778
 feature_detector_type: 'SIFT'
 descriptor_extractor_type: 'SIFT'
 descriptor_matcher_type: 'FlannBased'
