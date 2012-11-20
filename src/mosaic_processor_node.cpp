@@ -28,7 +28,7 @@ public:
     nh.param("feature_detector_type", p.featureDetectorType, std::string("SIFT"));
     nh.param("descriptor_extractor_type", p.descriptorExtractorType, std::string("SIFT"));
     nh.param("descriptor_matcher_type", p.descriptorMatcherType, std::string("FlannBased"));
-    nh.param("matcher_filter_name", p.matcherFilterName, std::string("DistanceFilter"));
+    nh.param("matcher_filter_type", p.matcherFilterName, std::string("DistanceFilter"));
     nh.param("matching_threshold",p.matching_threshold, 0.8);
     nh.param("ransac_reprojection_threshold", p.ransacReprojThreshold, 5.0);
     nh.param("reset_origin", reset_origin_, true);

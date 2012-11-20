@@ -36,7 +36,7 @@ public:
     doc["feature_detector_type"] >> p.featureDetectorType;
     doc["descriptor_extractor_type"] >> p.descriptorExtractorType;
     doc["descriptor_matcher_type"] >> p.descriptorMatcherType;
-    doc["matcher_filter"] >> p.matcherFilterName;
+    doc["matcher_filter_type"] >> p.matcherFilterName;
     doc["matching_threshold"] >> p.matching_threshold;
     doc["ransac_reprojection_threshold"] >> p.ransacReprojThreshold;
     doc["show_image"] >> show_image_;
