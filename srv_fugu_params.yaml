@@ -1,4 +1,4 @@
-mosaic_image: '/home/miquel/ros_workspace/mosaic_pose_extractor/src/fondocable-todo-200dpi-30cm.png'
+mosaic_image: 'data/fondocable-todo-200dpi-30cm.png'
 feature_detector_type: 'SIFT'
 descriptor_extractor_type: 'SIFT'
 descriptor_matcher_type: 'FlannBased'
