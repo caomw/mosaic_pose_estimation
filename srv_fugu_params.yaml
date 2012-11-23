@@ -1,4 +1,5 @@
 mosaic_image: 'data/fondocable-todo-200dpi-30cm.png'
+px_per_meter: 508.54
 feature_detector_type: 'SIFT'
 descriptor_extractor_type: 'SIFT'
 descriptor_matcher_type: 'FlannBased'
