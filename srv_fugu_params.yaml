@@ -3,7 +3,7 @@ px_per_meter: 508.54
 feature_detector_type: 'SIFT'
 descriptor_extractor_type: 'SIFT'
 descriptor_matcher_type: 'FlannBased'
-matcher_filter_name: 'DistanceFilter'
+matcher_filter_type: 'DistanceFilter'
 matching_threshold: 0.8
 ransac_reprojection_threshold: 5.0
 show_image: False
