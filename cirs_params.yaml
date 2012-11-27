@@ -6,6 +6,7 @@ descriptor_matcher_type: 'FlannBased'
 matcher_filter_type: 'DistanceFilter'
 matching_threshold: 0.8
 ransac_reprojection_threshold: 5.0
+min_num_inliers: 10
 
 show_image: False
 reset_origin: True

@@ -31,6 +31,7 @@ public:
     nh.param("matcher_filter_type", p.matcherFilterName, std::string("DistanceFilter"));
     nh.param("matching_threshold",p.matching_threshold, 0.8);
     nh.param("ransac_reprojection_threshold", p.ransacReprojThreshold, 5.0);
+    nh.param("min_num_inliers", p.minNumInliers, 10);
     nh.param("reset_origin", reset_origin_, true);
 
     ROS_INFO_STREAM("The parameters set are: \n" << p);

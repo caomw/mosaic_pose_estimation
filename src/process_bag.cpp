@@ -39,6 +39,7 @@ public:
     doc["matcher_filter_type"] >> p.matcherFilterName;
     doc["matching_threshold"] >> p.matching_threshold;
     doc["ransac_reprojection_threshold"] >> p.ransacReprojThreshold;
+    doc["min_num_inliers"] >> p.minNumInliers;
     doc["show_image"] >> show_image_;
     doc["reset_origin"] >> reset_origin_;
 

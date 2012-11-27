@@ -53,6 +53,7 @@ public:
     std::string descriptorMatcherType;
     std::string matcherFilterName;
     int matcherFilterType;
+    int minNumInliers;
     double matching_threshold;
     double ransacReprojThreshold;
     double pxPerMeter;

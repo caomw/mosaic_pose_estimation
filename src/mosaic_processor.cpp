@@ -246,8 +246,16 @@ bool MosaicProcessor::process(const cv::Mat& image)
     matchesMask_[inliers_[i]] = 1;
   }
 
-  return inliers_.size() > 4;
-
+  if (static_cast<int>(inliers_.size()) >= params_.minNumInliers)
+  {
+    return true;
+  }
+  else
+  {
+    rvec_ = cv::Mat();
+    tvec_ = cv::Mat();
+    return false;
+  }
 }
 
 cv::Mat MosaicProcessor::drawMatches()
@@ -271,6 +279,8 @@ cv::Mat MosaicProcessor::drawMatches()
 
 tf::Transform MosaicProcessor::getTransformation()
 {
+  if (rvec_.empty() || tvec_.empty())
+    return tf::Transform();
   tf::Vector3 axis(rvec_.at<double>(0, 0), rvec_.at<double>(1, 0), 
       rvec_.at<double>(2, 0));
   double angle = cv::norm(rvec_);
@@ -301,6 +311,8 @@ std::ostream& operator<<(std::ostream& out,
     << params.matcherFilterName << std::endl;
   out << "\t* Matcher filter threshold  = " 
     << params.matching_threshold << std::endl;
+  out << "\t* Mininum number of inliers = " 
+    << params.minNumInliers << std::endl;
   out << "\t* RANSAC reproj. threshold  = " 
     << params.ransacReprojThreshold;
   return out;
