@@ -79,8 +79,12 @@ private:
     }
 
     mosaicProcessor_->setCameraInfo(cam_info);
-    mosaicProcessor_->process(cv_ptr->image);
-    ROS_INFO_STREAM(mosaicProcessor_->getNumInliers() << " inliers.");
+    if (!mosaicProcessor_->process(cv_ptr->image))
+    {
+      ROS_ERROR("Cannot find pose. Skipping!");
+      return;
+    }
+    ROS_INFO_STREAM("Found pose with " << mosaicProcessor_->getNumInliers() << " inliers.");
 
     // publish result
     tf::Transform transform = mosaicProcessor_->getTransformation();

@@ -76,7 +76,11 @@ public:
     }
 
     mosaic_processor_->setCameraInfo(info);
-    mosaic_processor_->process(preprocessed.rect_color);
+    if (!mosaic_processor_->process(preprocessed.rect_color))
+    {
+      std::cerr << "ERROR finding pose, found " << mosaic_processor_->getNumInliers() << " inliers. Skipping." << std::endl;
+      return;
+    }
     tf::Transform transform = mosaic_processor_->getTransformation();
 
     static bool first_run = true;

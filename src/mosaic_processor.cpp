@@ -172,7 +172,7 @@ void MosaicProcessor::setCameraInfo(
   cameraMatrix_ = P.colRange(cv::Range(0,3)).clone();
 }
 
-void MosaicProcessor::process(const cv::Mat& image)
+bool MosaicProcessor::process(const cv::Mat& image)
 {
   currentImage_ = image;
   assert(!mosaicImage_.empty());
@@ -210,6 +210,10 @@ void MosaicProcessor::process(const cv::Mat& image)
       break;
   }
 
+  // we need at least 5 matches for solvePnPRansac
+  if (filteredMatches_.size() < 5)
+    return false;
+
   std::vector<int> queryIdxs(filteredMatches_.size()), 
     trainIdxs(filteredMatches_.size());
   std::vector<cv::Point2f> image_points(filteredMatches_.size());
@@ -241,6 +245,8 @@ void MosaicProcessor::process(const cv::Mat& image)
   {
     matchesMask_[inliers_[i]] = 1;
   }
+
+  return inliers_.size() > 4;
 
 }
 

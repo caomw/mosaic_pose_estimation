@@ -68,8 +68,9 @@ public:
   /**
    * Processes one image, use the getters to retrieve information
    * about the result.
+   * @return true if solution found, false otherwise (e.g. too few matches)
    */
-  void process(const cv::Mat& image);
+  bool process(const cv::Mat& image);
 
   /**
    * @return the current transformation from mosaic origin to camera
