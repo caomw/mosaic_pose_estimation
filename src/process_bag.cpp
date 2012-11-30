@@ -77,39 +77,42 @@ public:
     }
 
     mosaic_processor_->setCameraInfo(info);
-    if (!mosaic_processor_->process(preprocessed.rect_color))
+    bool found_pose = mosaic_processor_->process(preprocessed.rect_color);
+    if (!found_pose)
     {
       std::cerr << "ERROR finding pose, found " << mosaic_processor_->getNumInliers() << " inliers. Skipping." << std::endl;
-      return;
     }
-    tf::Transform transform = mosaic_processor_->getTransformation();
-
-    static bool first_run = true;
-    if (first_run)
+    else
     {
-      first_run = false;
-      if (reset_origin_)
-      {
-        initial_pose_ = transform;
-      }
-    }
+      tf::Transform transform = mosaic_processor_->getTransformation();
 
-    // re-base transform to initial pose
-    transform = initial_pose_.inverse() * transform;
-    geometry_msgs::Pose pose_msg;
-    tf::poseTFToMsg(transform, pose_msg);
-    std::ostringstream ostr;
-    output_stream_ << img->header.stamp << " " 
-      << pose_msg.position.x << " "
-      << pose_msg.position.y << " " 
-      << pose_msg.position.z << " "
-      << pose_msg.orientation.x << " " 
-      << pose_msg.orientation.y << " "
-      << pose_msg.orientation.z << " " 
-      << pose_msg.orientation.w << " "
-      << mosaic_processor_->getNumFeatures() << " "
-      << mosaic_processor_->getNumMatches() << " "
-      << mosaic_processor_->getNumInliers() << std::endl;
+      static bool first_run = true;
+      if (first_run)
+      {
+        first_run = false;
+        if (reset_origin_)
+        {
+          initial_pose_ = transform;
+        }
+      }
+
+      // re-base transform to initial pose
+      transform = initial_pose_.inverse() * transform;
+      geometry_msgs::Pose pose_msg;
+      tf::poseTFToMsg(transform, pose_msg);
+      std::ostringstream ostr;
+      output_stream_ << img->header.stamp << " " 
+        << pose_msg.position.x << " "
+        << pose_msg.position.y << " " 
+        << pose_msg.position.z << " "
+        << pose_msg.orientation.x << " " 
+        << pose_msg.orientation.y << " "
+        << pose_msg.orientation.z << " " 
+        << pose_msg.orientation.w << " "
+        << mosaic_processor_->getNumFeatures() << " "
+        << mosaic_processor_->getNumMatches() << " "
+        << mosaic_processor_->getNumInliers() << std::endl;
+    }
 
     if (show_image_)
     {
