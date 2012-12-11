@@ -210,6 +210,9 @@ bool MosaicProcessor::process(const cv::Mat& image)
       break;
   }
 
+  matchesMask_.resize(filteredMatches_.size());
+  std::fill(matchesMask_.begin(), matchesMask_.end(), 0);
+ 
   // we need at least 5 matches for solvePnPRansac
   if (filteredMatches_.size() < 5)
     return false;
@@ -239,8 +242,6 @@ bool MosaicProcessor::process(const cv::Mat& image)
                      cv::Mat(), rvec_, tvec_, useExtrinsicGuess, 
                      numIterations, allowedReprojectionError, 
                      maxInliers, inliers_);
-  matchesMask_.resize(filteredMatches_.size());
-  std::fill(matchesMask_.begin(), matchesMask_.end(), 0);
   for (size_t i = 0; i < inliers_.size(); ++i)
   {
     matchesMask_[inliers_[i]] = 1;
