@@ -22,17 +22,22 @@ public:
     ros::NodeHandle nh;
     ros::NodeHandle nh_private("~");
     MosaicProcessor::Parameters p;
-    std::string path = ros::package::getPath("mosaic_pose_extractor");
-    nh.getParam("mosaic_image", p.mosaicImgName);
-    nh.getParam("px_per_meter", p.pxPerMeter);
-    nh.param("feature_detector_type", p.featureDetectorType, std::string("SIFT"));
-    nh.param("descriptor_extractor_type", p.descriptorExtractorType, std::string("SIFT"));
-    nh.param("descriptor_matcher_type", p.descriptorMatcherType, std::string("FlannBased"));
-    nh.param("matcher_filter_type", p.matcherFilterName, std::string("DistanceFilter"));
-    nh.param("matching_threshold",p.matching_threshold, 0.8);
-    nh.param("ransac_reprojection_threshold", p.ransacReprojThreshold, 5.0);
-    nh.param("min_num_inliers", p.minNumInliers, 10);
-    nh.param("reset_origin", reset_origin_, true);
+    std::string path = ros::package::getPath(ROS_PACKAGE_NAME);
+    nh_private.getParam("mosaic_image", p.mosaicImgName);
+
+    // Chech if image path is relative or absolute
+    if (p.mosaicImgName.substr(0,1) != "/")
+      p.mosaicImgName = path + "/" + p.mosaicImgName;
+
+    nh_private.getParam("px_per_meter", p.pxPerMeter);
+    nh_private.param("feature_detector_type", p.featureDetectorType, std::string("SIFT"));
+    nh_private.param("descriptor_extractor_type", p.descriptorExtractorType, std::string("SIFT"));
+    nh_private.param("descriptor_matcher_type", p.descriptorMatcherType, std::string("FlannBased"));
+    nh_private.param("matcher_filter_type", p.matcherFilterName, std::string("DistanceFilter"));
+    nh_private.param("matching_threshold",p.matching_threshold, 0.8);
+    nh_private.param("ransac_reprojection_threshold", p.ransacReprojThreshold, 5.0);
+    nh_private.param("min_num_inliers", p.minNumInliers, 10);
+    nh_private.param("reset_origin", reset_origin_, true);
 
     ROS_INFO_STREAM("The parameters set are: \n" << p);
     ROS_INFO_STREAM("reset_origin = " << (reset_origin_ ? "true" : "false"));
