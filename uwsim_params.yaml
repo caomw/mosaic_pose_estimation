@@ -1,4 +1,4 @@
-mosaic_image: 'data/uwsim.png'
+mosaic_image: 'data/uwsim.jpg'
 px_per_meter: 348.7142857
 feature_detector_type: 'SIFT'
 descriptor_extractor_type: 'SIFT'

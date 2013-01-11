@@ -8,12 +8,12 @@
     <node pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc"/>
   </group>
   
-  <node pkg="mosaic_pose_extractor" type="mosaic_processor" name="mosaic_processor" output="screen">
-    <rosparam file="$(find mosaic_pose_extractor)/default_params.yaml"/>
+  <node pkg="mosaic_pose_estimation" type="mosaic_processor" name="mosaic_processor_node" output="screen">
+    <rosparam file="$(find mosaic_pose_estimation)/default_params.yaml"/>
     <remap from="stereo" to="$(arg stereo_topic)"/>
     <remap from="image" to="$(arg image_topic)"/>
   </node>
 
-  <include file="$(find fugu_configurations)/launch/fugu-c/fugu-c-static_transforms.launch"/>
+  <include file="$(find fugu_configurations)/launch/fugu-c/fugu-c-model.launch"/>
 
 </launch>
