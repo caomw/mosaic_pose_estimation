@@ -36,8 +36,4 @@
   <run_depend>tf</run_depend>
   <run_depend>nav_msgs</run_depend>
   <run_depend>bag_tools</run_depend>
-
-  <export>
-
-  </export>
 </package>
