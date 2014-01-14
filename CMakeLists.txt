@@ -66,6 +66,6 @@ target_link_libraries(mosaic_processor ${OpenCV_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(mosaic_processor_node mosaic_processor ${OpenCV_LIBRARIES} ${catkin_LIBRARIES})
 target_link_libraries(process_bag mosaic_processor ${YAMLCPP_LIBRARY} ${Boost_LIBRARIES} ${OpenCV_LIBRARIES} ${catkin_LIBRARIES})
 
-install(PROGRAMS scripts/getOdometryDatFile.py
+install(PROGRAMS scripts/mosaic_pose_estimation/getOdometryDatFile.py
          DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
