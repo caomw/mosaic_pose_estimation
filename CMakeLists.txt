@@ -1,23 +1,21 @@
-# http://ros.org/doc/groovy/api/catkin/html/user_guide/supposed.html
 cmake_minimum_required(VERSION 2.8.3)
 project(mosaic_pose_estimation)
-# Load catkin and all dependencies required for this package
-# TODO: remove all from COMPONENTS that are not catkin packages.
-find_package(catkin REQUIRED COMPONENTS 
-	roscpp 
-	rospy 
-	roslib 
-	sensor_msgs	
-	image_transport 
-	image_geometry 
+
+find_package(catkin REQUIRED COMPONENTS
+	roscpp
+	rospy
+	roslib
+	sensor_msgs
+	image_transport
+	image_geometry
 	image_proc
-	cv_bridge 
-	tf 
-	nav_msgs 
+	cv_bridge
+	tf
+	nav_msgs
 	bag_tools )
 
-
 find_package(OpenCV REQUIRED)
+# set(OpenCV_INCLUDE_DIRS "/home/miquel/lib/opencv/install/include")
 
 if (UNIX)
   find_library(YAMLCPP_LIBRARY NAMES yaml-cpp)
@@ -28,8 +26,8 @@ else()
   find_library(
     YAMLCPP_LIBRARY
     NAMES yamlcpp.lib
-    NO_DEFAULT_PATH 
-    PATHS 
+    NO_DEFAULT_PATH
+    PATHS
     $ENV{YAMLCPP_ROOT}/lib
   )
   find_file(YAMLCPP_HAVE_H include/yaml.h PATHS $ENV{YAMLCPP_ROOT} NO_DEFAULT_PATH)
@@ -56,7 +54,7 @@ catkin_package()
 
 catkin_python_setup()
 
-include_directories(${Boost_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS} ${YAMLCPP_INCLUDE_DIR} include)
+include_directories(${Boost_INCLUDE_DIRS} ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${YAMLCPP_INCLUDE_DIR} include)
 
 add_executable(mosaic_processor_node src/mosaic_processor_node.cpp)
 add_executable(process_bag src/process_bag.cpp)

@@ -27,21 +27,29 @@ public:
   {
     MosaicProcessor::Parameters p;
 
-    std::ifstream fin(config_file.c_str());
-    YAML::Parser parser(fin);
-    YAML::Node doc;
-    parser.GetNextDocument(doc);
-    doc["mosaic_image"] >> p.mosaicImgName;
-    doc["px_per_meter"] >> p.pxPerMeter;
-    doc["feature_detector_type"] >> p.featureDetectorType;
-    doc["descriptor_extractor_type"] >> p.descriptorExtractorType;
-    doc["descriptor_matcher_type"] >> p.descriptorMatcherType;
-    doc["matcher_filter_type"] >> p.matcherFilterName;
-    doc["matching_threshold"] >> p.matching_threshold;
-    doc["ransac_reprojection_threshold"] >> p.ransacReprojThreshold;
-    doc["min_num_inliers"] >> p.minNumInliers;
-    doc["show_image"] >> show_image_;
-    doc["reset_origin"] >> reset_origin_;
+    YAML::Node doc = YAML::LoadFile(config_file.c_str());
+    p.mosaicImgName = doc["mosaic_image"].as<std::string>();
+    p.featureDetectorType = doc["feature_detector_type"].as<std::string>();
+    p.descriptorExtractorType = doc["descriptor_extractor_type"].as<std::string>();
+    p.descriptorMatcherType = doc["descriptor_matcher_type"].as<std::string>();
+    p.matcherFilterName = doc["matcher_filter_type"].as<int>();
+    p.minNumInliers = doc["min_num_inliers"].as<int>();
+    p.matching_threshold = doc["matching_threshold"].as<double>();
+    p.ransacReprojThreshold = doc["ransac_reprojection_threshold"].as<double>();
+    p.pxPerMeter = doc["px_per_meter"].as<double>();
+    show_image_ = doc["show_image"].as<bool>();
+    reset_origin_ = doc["reset_origin"].as<bool>();
+
+    std::string mosaicImgName;
+    std::string featureDetectorType;
+    std::string descriptorExtractorType;
+    std::string descriptorMatcherType;
+    std::string matcherFilterName;
+    int matcherFilterType;
+    int minNumInliers;
+    double matching_threshold;
+    double ransacReprojThreshold;
+    double pxPerMeter;
 
     std::cout << "Parameters:" << std::endl << p << std::endl;
     mosaic_processor_ = boost::shared_ptr<MosaicProcessor>(
@@ -63,13 +71,13 @@ public:
       cv::destroyWindow(window_name_);
   }
 
-  void process(const sensor_msgs::ImageConstPtr& img, 
+  void process(const sensor_msgs::ImageConstPtr& img,
       const sensor_msgs::CameraInfoConstPtr& info)
   {
     image_proc::ImageSet preprocessed;
     image_geometry::PinholeCameraModel camera_model;
     camera_model.fromCameraInfo(info);
-    if (!processor_.process(img, camera_model, preprocessed, 
+    if (!processor_.process(img, camera_model, preprocessed,
           image_proc::Processor::RECT_COLOR))
     {
       std::cerr << "ERROR Processing image" << std::endl;
@@ -101,13 +109,13 @@ public:
       geometry_msgs::Pose pose_msg;
       tf::poseTFToMsg(transform, pose_msg);
       std::ostringstream ostr;
-      output_stream_ << img->header.stamp << " " 
+      output_stream_ << img->header.stamp << " "
         << pose_msg.position.x << " "
-        << pose_msg.position.y << " " 
+        << pose_msg.position.y << " "
         << pose_msg.position.z << " "
-        << pose_msg.orientation.x << " " 
+        << pose_msg.orientation.x << " "
         << pose_msg.orientation.y << " "
-        << pose_msg.orientation.z << " " 
+        << pose_msg.orientation.z << " "
         << pose_msg.orientation.w << " "
         << mosaic_processor_->getNumFeatures() << " "
         << mosaic_processor_->getNumMatches() << " "
@@ -155,13 +163,13 @@ int main(int argc, char** argv)
     return -1;
   }
   std::cout << "Writing data to " << argv[3] << std::endl;
-  
+
   cv::initModule_nonfree();
   ros::Time::init();
 
   MosaicPoseEstimator estimator(config_file, output);
   bag_tools::CameraBagProcessor bag_processor(camera_topic);
-  
+
   bag_processor.registerCallback(
       boost::bind(&MosaicPoseEstimator::process, estimator, _1, _2));
 
