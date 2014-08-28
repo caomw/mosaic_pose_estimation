@@ -15,7 +15,6 @@ find_package(catkin REQUIRED COMPONENTS
 	bag_tools )
 
 find_package(OpenCV REQUIRED)
-# set(OpenCV_INCLUDE_DIRS "/home/miquel/lib/opencv/install/include")
 
 if (UNIX)
   find_library(YAMLCPP_LIBRARY NAMES yaml-cpp)
