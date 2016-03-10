@@ -5,7 +5,7 @@ descriptor_extractor_type: 'SIFT'
 descriptor_matcher_type: 'FlannBased'
 matcher_filter_type: 'DistanceFilter'
 matching_threshold: 0.8
-ransac_reprojection_threshold: 5.0
-min_num_inliers: 10
+ransac_reprojection_threshold: 6.0
+min_num_inliers: 20
 show_image: True
 reset_origin: True

@@ -2,7 +2,7 @@
 /// Systems, Robotics and Vision Group
 /// University of the Balearican Islands
 /// All rights reserved.
-/// 
+///
 /// Redistribution and use in source and binary forms, with or without
 /// modification, are permitted provided that the following conditions are met:
 ///     * Redistributions of source code must retain the above copyright
@@ -10,20 +10,20 @@
 ///     * Redistributions in binary form must reproduce the above copyright
 ///       notice, this list of conditions and the following disclaimer in the
 ///       documentation and/or other materials provided with the distribution.
-///     * Neither the name of Systems, Robotics and Vision Group, University of 
-///       the Balearican Islands nor the names of its contributors may be used 
-///       to endorse or promote products derived from this software without 
+///     * Neither the name of Systems, Robotics and Vision Group, University of
+///       the Balearican Islands nor the names of its contributors may be used
+///       to endorse or promote products derived from this software without
 ///       specific prior written permission.
-/// 
-/// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-/// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-/// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+///
+/// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+/// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+/// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 /// ARE DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
 /// DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 /// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 /// LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 /// ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-/// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF 
+/// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 /// THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "mosaic_pose_estimation/mosaic_processor.h"
@@ -41,11 +41,11 @@ MosaicProcessor::MosaicProcessor(const Parameters& p) : params_(p)
 {
   params_.matcherFilterType = getMatcherFilterType(params_.matcherFilterName );
   detector_ = cv::FeatureDetector::create(params_.featureDetectorType);
-  descriptorExtractor_ = 
+  descriptorExtractor_ =
     cv::DescriptorExtractor::create(params_.descriptorExtractorType );
   descriptorMatcher_ = cv::DescriptorMatcher::create( params_.descriptorMatcherType );
 
-  if(detector_.empty() || descriptorExtractor_.empty() || 
+  if(detector_.empty() || descriptorExtractor_.empty() ||
       descriptorMatcher_.empty()  )
   {
     ROS_ERROR("Can not create detector or descriptor extractor or "
@@ -64,7 +64,7 @@ MosaicProcessor::MosaicProcessor(const Parameters& p) : params_(p)
   detector_->detect(mosaicImage_, keypointsMosaic_ );
 
   ROS_INFO("Computing descriptors for keypoints from mosaic...");
-  descriptorExtractor_->compute(mosaicImage_, keypointsMosaic_, 
+  descriptorExtractor_->compute(mosaicImage_, keypointsMosaic_,
       descriptorsMosaic_ );
   ROS_INFO_STREAM(keypointsMosaic_.size() << " features.");
 
@@ -72,9 +72,9 @@ MosaicProcessor::MosaicProcessor(const Parameters& p) : params_(p)
   cv::KeyPoint::convert(keypointsMosaic_, pointsMosaic_);
   pointsMosaic3D_.resize(pointsMosaic_.size());
   for (size_t i_mos=0;i_mos<pointsMosaic_.size();i_mos++) {
-    pointsMosaic3D_[i_mos].x = 
+    pointsMosaic3D_[i_mos].x =
       pointsMosaic_[i_mos].x/params_.pxPerMeter;
-    pointsMosaic3D_[i_mos].y = 
+    pointsMosaic3D_[i_mos].y =
       pointsMosaic_[i_mos].y/params_.pxPerMeter;
     pointsMosaic3D_[i_mos].z = 0;
   }
@@ -152,7 +152,7 @@ void MosaicProcessor::thresholdMatching(
     }
     else if (matches12[m].size() == 2) // normal case
     {
-      if (matches12[m][0].distance / matches12[m][1].distance 
+      if (matches12[m][0].distance / matches12[m][1].distance
           < matching_threshold)
       {
         filteredMatches12.push_back(matches12[m][0]);
@@ -164,12 +164,25 @@ void MosaicProcessor::thresholdMatching(
 void MosaicProcessor::setCameraInfo(
     const sensor_msgs::CameraInfoConstPtr& cam_info)
 {
+  // Get the binning factors
+  int binning_x = cam_info->binning_x;
+  int binning_y = cam_info->binning_y;
+
   const cv::Mat P(3,4, CV_64FC1, const_cast<double*>(cam_info->P.data()));
   // We have to take K' here extracted from P to take the R|t into i
   // account // that was performed during rectification.
-  // This way we obtain the pattern pose with respect to the same 
+  // This way we obtain the pattern pose with respect to the same
   // frame that is used in stereo depth calculation.
   cameraMatrix_ = P.colRange(cv::Range(0,3)).clone();
+
+  // Are the images scaled?
+  if (binning_x > 1 || binning_y > 1)
+  {
+    cameraMatrix_.at<double>(0,0) = cameraMatrix_.at<double>(0,0) / binning_x;
+    cameraMatrix_.at<double>(0,2) = cameraMatrix_.at<double>(0,2) / binning_x;
+    cameraMatrix_.at<double>(1,1) = cameraMatrix_.at<double>(1,1) / binning_y;
+    cameraMatrix_.at<double>(1,2) = cameraMatrix_.at<double>(1,2) / binning_y;
+  }
 }
 
 bool MosaicProcessor::process(const cv::Mat& image)
@@ -189,35 +202,35 @@ bool MosaicProcessor::process(const cv::Mat& image)
   */
 
   detector_->detect(currentImage_, keypointsFrame_ );
-  descriptorExtractor_->compute(currentImage_, keypointsFrame_, 
+  descriptorExtractor_->compute(currentImage_, keypointsFrame_,
       descriptorsFrame_ );
 
   ROS_DEBUG("Matching descriptors...");
   switch( params_.matcherFilterType )
   {
     case CROSS_CHECK_FILTER :
-      crossCheckMatching(descriptorMatcher_, descriptorsFrame_, 
+      crossCheckMatching(descriptorMatcher_, descriptorsFrame_,
           descriptorsMosaic_, filteredMatches_, 1);
       break;
     case DISTANCE_FILTER:
-      thresholdMatching(descriptorMatcher_, descriptorsFrame_, 
-          descriptorsMosaic_, filteredMatches_, 
+      thresholdMatching(descriptorMatcher_, descriptorsFrame_,
+          descriptorsMosaic_, filteredMatches_,
           params_.matching_threshold);
       break;
     default :
-      simpleMatching(descriptorMatcher_, descriptorsFrame_, 
+      simpleMatching(descriptorMatcher_, descriptorsFrame_,
           descriptorsMosaic_, filteredMatches_ );
       break;
   }
 
   matchesMask_.resize(filteredMatches_.size());
   std::fill(matchesMask_.begin(), matchesMask_.end(), 0);
- 
+
   // we need at least 5 matches for solvePnPRansac
   if (filteredMatches_.size() < 5)
     return false;
 
-  std::vector<int> queryIdxs(filteredMatches_.size()), 
+  std::vector<int> queryIdxs(filteredMatches_.size()),
     trainIdxs(filteredMatches_.size());
   std::vector<cv::Point2f> image_points(filteredMatches_.size());
   std::vector<cv::Point3f> world_points(filteredMatches_.size());
@@ -235,12 +248,12 @@ bool MosaicProcessor::process(const cv::Mat& image)
   if (rvec_.empty() || tvec_.empty())
     useExtrinsicGuess = false;
 
-  int numIterations = 1000;
+  int numIterations = 100;
   float allowedReprojectionError = params_.ransacReprojThreshold;//8.0
-  int maxInliers = 10000; // stop if more inliers than this are found
-  cv::solvePnPRansac(world_points, image_points, cameraMatrix_, 
-                     cv::Mat(), rvec_, tvec_, useExtrinsicGuess, 
-                     numIterations, allowedReprojectionError, 
+  int maxInliers = 100; // stop if more inliers than this are found
+  cv::solvePnPRansac(world_points, image_points, cameraMatrix_,
+                     cv::Mat(), rvec_, tvec_, useExtrinsicGuess,
+                     numIterations, allowedReprojectionError,
                      maxInliers, inliers_);
   for (size_t i = 0; i < inliers_.size(); ++i)
   {
@@ -273,7 +286,7 @@ cv::Mat MosaicProcessor::drawMatches()
   cv::drawMatches(currentImage_, keypointsFrame_,
       mosaicImage_, keypointsMosaic_, filteredMatches_, drawImg,
       CV_RGB(0, 0, 255), CV_RGB(255, 0, 0), outliers,
-      cv::DrawMatchesFlags::DRAW_OVER_OUTIMG | 
+      cv::DrawMatchesFlags::DRAW_OVER_OUTIMG |
       cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
   return drawImg;
 }
@@ -282,12 +295,12 @@ tf::Transform MosaicProcessor::getTransformation()
 {
   if (rvec_.empty() || tvec_.empty())
     return tf::Transform();
-  tf::Vector3 axis(rvec_.at<double>(0, 0), rvec_.at<double>(1, 0), 
+  tf::Vector3 axis(rvec_.at<double>(0, 0), rvec_.at<double>(1, 0),
       rvec_.at<double>(2, 0));
   double angle = cv::norm(rvec_);
   tf::Quaternion quaternion(axis, angle);
 
-  tf::Vector3 translation(tvec_.at<double>(0, 0), tvec_.at<double>(1, 0), 
+  tf::Vector3 translation(tvec_.at<double>(0, 0), tvec_.at<double>(1, 0),
       tvec_.at<double>(2, 0));
   // solvePnPRansac calculates object pose, we want camera pose
   // for fixed object so we have to invert here
@@ -295,26 +308,26 @@ tf::Transform MosaicProcessor::getTransformation()
 }
 
 
-std::ostream& operator<<(std::ostream& out, 
+std::ostream& operator<<(std::ostream& out,
     const MosaicProcessor::Parameters& params)
 {
-  out << "\t* Mosaic image name         = " 
+  out << "\t* Mosaic image name         = "
     << params.mosaicImgName << std::endl;
-  out << "\t* Pixels per meter          = " 
+  out << "\t* Pixels per meter          = "
     << params.pxPerMeter << std::endl;
-  out << "\t* Feature detector type     = " 
+  out << "\t* Feature detector type     = "
     << params.featureDetectorType << std::endl;
-  out << "\t* Descriptor extractor type = " 
+  out << "\t* Descriptor extractor type = "
     << params.descriptorExtractorType << std::endl;
-  out << "\t* Descriptor matcher type   = " 
+  out << "\t* Descriptor matcher type   = "
     << params.descriptorMatcherType << std::endl;
-  out << "\t* Matcher filter name       = " 
+  out << "\t* Matcher filter name       = "
     << params.matcherFilterName << std::endl;
-  out << "\t* Matcher filter threshold  = " 
+  out << "\t* Matcher filter threshold  = "
     << params.matching_threshold << std::endl;
-  out << "\t* Mininum number of inliers = " 
+  out << "\t* Mininum number of inliers = "
     << params.minNumInliers << std::endl;
-  out << "\t* RANSAC reproj. threshold  = " 
+  out << "\t* RANSAC reproj. threshold  = "
     << params.ransacReprojThreshold;
   return out;
 }
